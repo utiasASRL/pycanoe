@@ -2,6 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+# TODO: implement
+def vis_camera(self, **kwargs):
+    return NotImplementedError
+
+
 # TODO: change defaults
 def vis_lidar(
     lidar,

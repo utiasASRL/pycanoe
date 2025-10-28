@@ -2,9 +2,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# TODO: implement
-def vis_camera(self, **kwargs):
-    return NotImplementedError
+def vis_camera(cam, figsize=(20.48, 11.52), dpi=100, show=True, save=None):
+    fig = plt.figure(figsize=figsize, dpi=dpi)
+    ax = fig.add_subplot()
+    ax.imshow(cam.img)
+    ax.set_axis_off()
+    if show:
+        plt.show()
+    if save is not None:
+        plt.savefig(save, bbox_inches="tight")
+    return ax
 
 
 # TODO: change defaults

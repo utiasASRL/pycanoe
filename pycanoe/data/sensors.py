@@ -7,6 +7,7 @@ from pycanoe.utils.utils import (
     get_time_from_filename,
     get_time_from_filename_microseconds,
     load_lidar,
+    load_radar,
 )
 from pycanoe.utils.vis_utils import vis_lidar, vis_camera
 
@@ -72,3 +73,30 @@ class Camera(Sensor):
 
     def unload_data(self):
         self.img = None
+
+
+class Radar(Sensor):
+    def __init__(self, path):
+        Sensor.__init__(self, path)
+        self.timestamps = None
+        self.azimuths = None
+        self.polar = None
+        self.cartesian = None
+        self.resolution = None  # TODO
+
+    def load_data(self):
+        self.timestamps, self.azimuths, _, self.polar, self.resolution = load_radar(
+            self.path
+        )
+
+        cart_path = osp.join(self.sensor_root, "cart", self.frame + ".png")
+        if osp.exists(cart_path):
+            self.cartesian = cv2.imread(cart_path, cv2.IMREAD_GRAYSCALE)
+
+        return self.timestamps, self.azimuths, self.polar
+
+    def unload_data(self):
+        self.timestamps = None
+        self.azimuths = None
+        self.polar = None
+        self.cartesian = None

@@ -1,6 +1,7 @@
 # import os.path as osp
 from pathlib import Path
 import numpy as np
+import cv2
 from bisect import bisect_left
 
 
@@ -117,3 +118,39 @@ def load_lidar(path):
     )
 
     return points
+
+
+def load_radar(path):
+    """Decode a radar image w/ Oxford convention for encoding.
+
+    Args:
+        path: path to radar range image following Oxford encoding format
+
+    Returns:
+        timestamps (np.ndarray): Timestamp for each azimuth in int64 (UNIX time)
+        azimuths (np.ndarray): Rotation for each polar radar azimuth (radians)
+        valid (np.ndarray) Mask of whether azimuth data is an original sensor reading or interpolated from adjacent
+            azimuths
+        fft_data (np.ndarray): Radar power readings along each azimuth
+    """
+    # Hard coded configuration to simplify parsing code
+    encoder_size = 5600  # TODO: get from config
+    max_range = 1000  # m TODO: get from config**
+    min_range = 2.5  # m
+
+    # t = get_time_from_filename(path)
+    raw_data = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    timestamps = raw_data[:, :8].copy().view(np.int64)
+    azimuths = (
+        raw_data[:, 8:10].copy().view(np.uint16) / float(encoder_size) * 2 * np.pi
+    ).astype(np.float32)
+    valid = raw_data[:, 10:11] == 255
+
+    # Range data: (H,W), np.float32, 0-1
+    fft_data = raw_data[:, 11:].astype(np.float32)[:, :, np.newaxis] / 255.0
+    # Resolution = range/width (m/pix)
+    resolution = max_range / fft_data.shape[1]
+    min_pixel = int(round(min_range / resolution))
+    fft_data[:, :min_pixel] = 0
+    fft_data = np.squeeze(fft_data)
+    return timestamps, azimuths, valid, fft_data, resolution

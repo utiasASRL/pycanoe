@@ -3,6 +3,8 @@ from pathlib import Path
 import numpy as np
 import cv2
 from bisect import bisect_left
+import os.path as osp
+import csv
 
 
 def get_time_from_filename(file: str) -> float:
@@ -26,6 +28,130 @@ def get_time_from_filename_microseconds(file: str) -> int:
 def _get_times_from_sensor_azimuths(timestamps):
     """Convert sensor azimuth timestamps from nanosec to seconds w/ microsec precision."""
     return (timestamps / 1e9).round(6)
+
+
+def get_gt_data_for_frame(seq_root, sens_type, frame):
+    """Retrieve ground-truth novatel (GPS) data for a given sensor frame
+
+    Args:
+        seq_root (str): path to the sequence root
+        sens_type (str): lidar, radar, cam_left, cam_right, or sonar
+        frame (str): name/timestamp (microsec) of the given sensor frame (without the extension)
+
+    Returns:
+        gt (list): A list of ground truth values from the applanix sensor_poses.scv
+    """
+    posepath = osp.join(seq_root, "novatel", sens_type + "_poses.csv")
+
+    with open(posepath, "r") as f:
+        reader = csv.reader(f)
+        next(reader)  # header
+        for line in reader:
+            if line[0] == frame:
+                return line
+
+    assert 0, "gt not found for seq_root: {} sens_type: {} frame: {}".format(
+        seq_root, sens_type, frame
+    )
+    return None
+
+
+# TODO: Verify this mapping of the sensor_poses.py csv****
+def get_state_from_gt_data(gt):
+    """
+    Convert line from sensor_poses.py into sensor state
+
+    Input Line:
+        0: utc_microsec [microsec]
+        1-3: x,y,z (r_s_enuref_in_enuref. i.e., sensor in enuref) [m]
+        4-6: ang_x, ang_y, ang_z (xyz angles from sensor to enuref w/ 321 sequence, C_es) [rad]
+        7-9: vel_x_enuref, vel_y_enuref, vel_z_enuref (v_s_enuref_in_enuref, i.e., sensor speed in enuref) [m/s]
+        10-12: angvel_x, angvel_y, angvel_z (w_s_enuref_in_s, i.e., angvel in sensor frame) [rad/s]
+        13-15: vel_x_body, vel_y_body, vel_z_body (v_s_enuref_in_s) [m/s]
+
+    Output:
+        pose (T_enuref_sensor),
+
+    """
+    data = np.array(gt, dtype=np.float64)
+
+    (
+        __,
+        x,
+        y,
+        z,
+        ang_x,
+        ang_y,
+        ang_z,
+        vel_x_enuref,
+        vel_y_enuref,
+        vel_z_enuref,
+        angvel_x,
+        angvel_y,
+        angvel_z,
+        vel_x_body,
+        vel_y_body,
+        vel_z_body,
+    ) = data[:]
+
+    T_enuref_sens = np.eye(4)
+    T_enuref_sens[0:3, 0:3] = C_enuref_sens = zyx_ang_to_C(z=ang_z, y=ang_y, x=ang_x)
+    T_enuref_sens[0:3, 3] = np.array([x, y, z])
+    pose = T_enuref_sens
+
+    v_sens_enuref_in_enuref = np.array([vel_x_enuref, vel_y_enuref, vel_z_enuref])
+    v_sens_enuref_in_sens = np.array([vel_x_body, vel_y_body, vel_z_body])
+
+    w_sens_enuref_in_sens = np.array([angvel_x, angvel_y, angvel_z])
+    w_sens_enuref_in_enuref = C_enuref_sens @ w_sens_enuref_in_sens
+
+    # Velocity = [v w] = varpi_sens_enuref_in_enuref
+    velocity = np.concatenate([v_sens_enuref_in_enuref, w_sens_enuref_in_enuref])
+    velocity = velocity[:, np.newaxis]
+
+    # Body rate = [v w] = varpi_sens_enuref_in_sens
+    body_rate = np.concatenate([v_sens_enuref_in_sens, w_sens_enuref_in_sens])
+    body_rate = body_rate[:, np.newaxis]
+
+    return pose, velocity, body_rate
+
+
+def C1(ang_x):
+    return np.array(
+        [
+            [1, 0, 0],
+            [0, np.cos(ang_x), np.sin(ang_x)],
+            [0, -np.sin(ang_x), np.cos(ang_x)],
+        ],
+        dtype=np.float64,
+    )
+
+
+def C2(ang_y):
+    return np.array(
+        [
+            [np.cos(ang_y), 0, -np.sin(ang_y)],
+            [0, 1, 0],
+            [np.sin(ang_y), 0, np.cos(ang_y)],
+        ],
+        dtype=np.float64,
+    )
+
+
+def C3(ang_z):
+    return np.array(
+        [
+            [np.cos(ang_z), np.sin(ang_z), 0],
+            [-np.sin(ang_z), np.cos(ang_z), 0],
+            [0, 0, 1],
+        ],
+        dtype=np.float64,
+    )
+
+
+def zyx_ang_to_C(z, y, x):
+    """z,y,x angles to C matrix using 321 convention"""
+    return C1(x) @ C2(y) @ C3(z)
 
 
 def get_closest_index(query, targets):
@@ -120,11 +246,15 @@ def load_lidar(path):
     return points
 
 
-def load_radar(path):
+# TODO: add gain & offset
+def load_radar(path, encoder_size, min_range, max_range):
     """Decode a radar image w/ Oxford convention for encoding.
 
     Args:
         path: path to radar range image following Oxford encoding format
+        encoder_size (int): number of discrete encoder positions
+        min_range (float): range below which measurements are clipped (in meters)
+        max_range (float): maximum range of the radar (in meters)
 
     Returns:
         timestamps (np.ndarray): Timestamp for each azimuth in int64 (UNIX time)
@@ -133,11 +263,6 @@ def load_radar(path):
             azimuths
         fft_data (np.ndarray): Radar power readings along each azimuth
     """
-    # Hard coded configuration to simplify parsing code
-    encoder_size = 5600  # TODO: get from config
-    max_range = 1000  # m TODO: get from config**
-    min_range = 2.5  # m
-
     # t = get_time_from_filename(path)
     raw_data = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
     timestamps = raw_data[:, :8].copy().view(np.int64)

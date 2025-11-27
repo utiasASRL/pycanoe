@@ -1,11 +1,14 @@
 import os.path as osp
 from pathlib import Path
 import cv2
+import yaml
 
 from pycanoe.data.pointcloud import PointCloud
 from pycanoe.utils.utils import (
     get_time_from_filename,
     get_time_from_filename_microseconds,
+    get_gt_data_for_frame,
+    get_state_from_gt_data,
     load_lidar,
     load_radar,
 )
@@ -37,9 +40,21 @@ class Sensor:
         self.timestamp = get_time_from_filename(self.frame)
         self.timestamp_micro = get_time_from_filename_microseconds(self.frame)
 
-    # TODO: Implement init pose
     def init_pose(self, data=None):
-        raise NotImplementedError
+        """Initializes pose variables with ground-truth novatel data
+
+        Args:
+            data (list): A list of floats corresponding to the line from the sensor_pose.csv file
+                with the matching timestamp
+        """
+        if data is not None:
+            gt = [float(x) for x in data]
+        else:
+            gt = get_gt_data_for_frame(self.seq_root, self.sensType, self.frame)
+
+        self.pose, self.velocity, self.body_rate = get_state_from_gt_data(gt)
+
+        return self.pose, self.velocity, self.body_rate
 
 
 class Lidar(Sensor, PointCloud):
@@ -76,17 +91,42 @@ class Camera(Sensor):
 
 
 class Radar(Sensor):
-    def __init__(self, path):
+    def __init__(self, path, config_path):
         Sensor.__init__(self, path)
+        self.config_path = config_path
+
         self.timestamps = None
         self.azimuths = None
         self.polar = None
+        self.resolution = None
         self.cartesian = None
-        self.resolution = None  # TODO
+
+        # Radar output: 8-bit power values per range bin
+        # Range: (bin number * range resolution * gain) + offset
+        self.gain = None
+        self.offset = None
+        self.encoder_size = None
+        self.max_range = None
+
+        self.min_range = 2.5  # m
+
+    def load_config(self):
+        with open(osp.join(self.config_path), "r") as f:
+            config = yaml.load(f)
+
+        self.gain = config["range_gain"]
+        self.offset = config["range_offset"]
+        self.encoder_size = config["encoder_size"]
+        self.max_range = config["max_range"][self.seqID]
+
+        return self.gain, self.offset, self.encoder_size, self.max_range
 
     def load_data(self):
+
+        self.load_config()
+
         self.timestamps, self.azimuths, _, self.polar, self.resolution = load_radar(
-            self.path
+            self.path, self.encoder_size, self.max_range, self.min_range
         )
 
         cart_path = osp.join(self.sensor_root, "cart", self.frame + ".png")
@@ -100,3 +140,9 @@ class Radar(Sensor):
         self.azimuths = None
         self.polar = None
         self.cartesian = None
+        self.resolution = None
+
+        self.encoder_size = None
+        self.max_range = None
+        self.gain = None
+        self.offset = None

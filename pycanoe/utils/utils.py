@@ -92,7 +92,7 @@ def get_state_from_gt_data(gt):
         vel_x_body,
         vel_y_body,
         vel_z_body,
-    ) = data[:]
+    ) = data[0:16]
 
     T_enuref_sens = np.eye(4)
     T_enuref_sens[0:3, 0:3] = C_enuref_sens = zyx_ang_to_C(z=ang_z, y=ang_y, x=ang_x)
@@ -114,6 +114,21 @@ def get_state_from_gt_data(gt):
     body_rate = body_rate[:, np.newaxis]
 
     return pose, velocity, body_rate
+
+
+def get_inverse_tf(T):
+    """Returns the inverse of a given 4x4 homogeneous transform.
+    Args:
+        T (np.ndarray): 4x4 transformation matrix
+    Returns:
+        np.ndarray: inv(T)
+    """
+    T2 = np.identity(4, dtype=T.dtype)
+    R = T[0:3, 0:3]
+    t = T[0:3, 3].reshape(3, 1)
+    T2[0:3, 0:3] = R.transpose()
+    T2[0:3, 3:] = np.matmul(-1 * R.transpose(), t)
+    return T2
 
 
 def C1(ang_x):

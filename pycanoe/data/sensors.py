@@ -91,9 +91,9 @@ class Camera(Sensor):
 
 
 class Radar(Sensor):
-    def __init__(self, path, config_path):
+    def __init__(self, path):
         Sensor.__init__(self, path)
-        self.config_path = config_path
+        self.config_path = osp.join(self.seq_root, "calib", "radar_config.yaml")
 
         self.timestamps = None
         self.azimuths = None
@@ -126,7 +126,7 @@ class Radar(Sensor):
         self.load_config()
 
         self.timestamps, self.azimuths, _, self.polar, self.resolution = load_radar(
-            self.path, self.encoder_size, self.max_range, self.min_range
+            self.path, self.encoder_size, self.min_range, self.max_range
         )
 
         cart_path = osp.join(self.sensor_root, "cart", self.frame + ".png")

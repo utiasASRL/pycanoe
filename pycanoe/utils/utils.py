@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import cv2
 from bisect import bisect_left
+import os
 import os.path as osp
 import csv
 
@@ -217,6 +218,14 @@ def get_closest_frame(query_time, frame_times, frames, threshold=3.0):
     return frames[closest]
 
 
+def _get_closest_file_in_dir(query_time, target_folder):
+    target_files = os.listdir(target_folder)
+    target_times = [get_time_from_filename(name) for name in target_files]
+    target_times, target_files = zip(*sorted(zip(target_times, target_files)))
+    closest_idx = get_closest_index(query_time, target_times)
+    return target_files[closest_idx]
+
+
 def is_sorted(x):
     """Return True is x is a sorted list, otherwise False."""
     return (np.diff(x) >= 0).all()
@@ -261,7 +270,76 @@ def load_lidar(path):
     return points
 
 
-# TODO: add gain & offset
+def load_sonar(
+    path,
+    deg_per_enc,
+    min_range,
+    max_range,
+):
+    """Decode sonar image w/ timestamps embedded in top 2 rows
+
+    Args:
+        path: path to sonar image
+
+    """
+    raw_data = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+    bearings = raw_data[:2, :].transpose().copy().view(np.int16)  # 2xNb -> Nbx2 -> Nbx1
+    fft_data = raw_data[2:, :].astype(np.float32) / 255.0  # Nr x Nb (range x bearing)
+    num_range, num_bearing = fft_data.shape
+
+    # Bearings -> Azimuth (encoder -> degree -> radian)
+    azimuths = bearings.astype(np.float32) * deg_per_enc * np.pi / 180
+
+    # Resolution = max_range/num_ranges [m/pix]
+    resolution = max_range / num_range
+
+    # Min pixel
+    min_pixel = int(round(min_range / resolution))
+    fft_data[:, :min_pixel] = 0
+
+    # fft_data = np.squeeze(fft_data)
+    return azimuths, fft_data, resolution
+
+
+def sonar_polar_to_cartesian(
+    azimuths,
+    fft_data,
+    sonar_resolution,
+    cart_resolution,
+    cart_pixel_height,
+):
+    cart_max_range = (cart_pixel_height - 0.5) * cart_resolution
+    # cart_pixel_width = 2* cart_pixel_height
+
+    # Set up separate grids w/ X & Y distance from sensor (in m) for corresponding pixel
+    # x = "out" = row value
+    coords_x = np.linspace(0, cart_max_range, cart_pixel_height, dtype=np.float32)
+    # y = "left & right" = column value
+    coords_y = np.linspace(
+        -cart_max_range, cart_max_range, 2 * cart_pixel_height, dtype=np.float32
+    )
+    Y, X = np.meshgrid(coords_y, coords_x)
+
+    # Get range & angle for each pixel in cart image
+    sample_range = np.sqrt(Y * Y + X * X)
+    sample_angle = np.arctan2(Y, X)
+
+    # Based on ranges & angles needed for cart image, determine pixel locations to sample the polar image
+    azimuth_step = (azimuths[-1] - azimuths[0]) / (azimuths.shape[0] - 1)
+    sample_u = (sample_range - 0.5 * sonar_resolution) / sonar_resolution
+    sample_v = (sample_angle - azimuths[0]) / azimuth_step
+
+    # We clip the sample points to the minimum sensor reading range so that we
+    # do not have undefined results in the centre of the image. In practice
+    # this region is simply undefined.
+    sample_u[sample_u < 0] = 0
+
+    polar_to_cart_warp = np.stack((sample_v, sample_u), -1)
+    cart = cv2.remap(fft_data, polar_to_cart_warp, None, cv2.INTER_LINEAR)
+    return cart
+
+
+# TODO: add gain & offset?
 def load_radar(path, encoder_size, min_range, max_range):
     """Decode a radar image w/ Oxford convention for encoding.
 
@@ -294,3 +372,74 @@ def load_radar(path, encoder_size, min_range, max_range):
     fft_data[:, :min_pixel] = 0
     fft_data = np.squeeze(fft_data)
     return timestamps, azimuths, valid, fft_data, resolution
+
+
+def radar_polar_to_cartesian(
+    azimuths,
+    fft_data,
+    radar_resolution,
+    cart_resolution,
+    cart_pixel_width,
+    interpolate_crossover=True,
+    fix_wobble=True,
+):
+    """
+    Args:
+        azimuths (np.ndarray): Rotation for each polar radar azimuth (radians)
+        fft_data (np.ndarray): Polar radar power readings
+        radar_resolution (float): Resolution of the polar radar data (metres per pixel)
+        cart_resolution (float): Cartesian resolution (metres per pixel)
+        cart_pixel_width (int): width and height of the returned square cartesian output (pixels) (see notes for full explanation.)
+        interpolate_crossover (bool, optional): If true, interpolates between the start and end azimuths. In practice a scan before / after should be used but this prevents nan regions in the return cartesian form.
+
+    Returns:
+        cart_data (np.ndarray): Cartesian radar power readings
+    """
+
+    if (cart_pixel_width % 2) == 0:
+        cart_max_range = (cart_pixel_width / 2 - 0.5) * cart_resolution
+    else:
+        cart_max_range = cart_pixel_width // 2 * cart_resolution
+
+    # Set up separate grids w/ X & Y distance from sensor (in m) for corresponding pixel
+    coords = np.linspace(
+        -cart_max_range, cart_max_range, cart_pixel_width, dtype=np.float32
+    )
+    Y, X = np.meshgrid(coords, -1 * coords)
+
+    # Get range & angle for each pixel in cart image
+    sample_range = np.sqrt(Y * Y + X * X)
+    sample_angle = np.arctan2(Y, X)
+    sample_angle += (sample_angle < 0).astype(np.float32) * 2.0 * np.pi
+
+    # Based on ranges & angles needed for cart image, determine pixel locations to sample the polar image
+    azimuth_step = (azimuths[-1] - azimuths[0]) / (azimuths.shape[0] - 1)
+    sample_u = (sample_range - radar_resolution / 2) / radar_resolution
+    sample_v = (sample_angle - azimuths[0]) / azimuth_step
+
+    # This fixes the wobble in the old CIR204 data from Boreas
+    M = azimuths.shape[0]
+    azms = azimuths.squeeze()
+    if fix_wobble:
+        c3 = np.searchsorted(azms, sample_angle.squeeze())
+        c3[c3 == M] -= 1
+        c2 = c3 - 1
+        c2[c2 < 0] += 1
+        a3 = azms[c3]
+        diff = sample_angle.squeeze() - a3
+        a2 = azms[c2]
+        delta = diff * (diff < 0) * (c3 > 0) / (a3 - a2 + 1e-14)
+        sample_v = (c3 + delta).astype(np.float32)
+
+    # We clip the sample points to the minimum sensor reading range so that we
+    # do not have undefined results in the centre of the image. In practice
+    # this region is simply undefined.
+    sample_u[sample_u < 0] = 0
+
+    if interpolate_crossover:
+        fft_data = np.concatenate((fft_data[-1:], fft_data, fft_data[:1]), 0)
+        sample_v = sample_v + 1
+
+    polar_to_cart_warp = np.stack((sample_u, sample_v), -1)
+    cart = cv2.remap(fft_data, polar_to_cart_warp, None, cv2.INTER_LINEAR)
+    return cart

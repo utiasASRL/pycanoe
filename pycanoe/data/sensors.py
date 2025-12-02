@@ -11,8 +11,11 @@ from pycanoe.utils.utils import (
     get_state_from_gt_data,
     load_lidar,
     load_radar,
+    load_sonar,
+    radar_polar_to_cartesian,
+    sonar_polar_to_cartesian,
 )
-from pycanoe.utils.vis_utils import vis_lidar, vis_camera
+from pycanoe.utils.vis_utils import vis_lidar, vis_camera, vis_radar, vis_sonar
 
 
 class Sensor:
@@ -112,7 +115,7 @@ class Radar(Sensor):
 
     def load_config(self):
         with open(osp.join(self.config_path), "r") as f:
-            config = yaml.load(f)
+            config = yaml.load(f, yaml.SafeLoader)
 
         self.gain = config["range_gain"]
         self.offset = config["range_offset"]
@@ -135,6 +138,9 @@ class Radar(Sensor):
 
         return self.timestamps, self.azimuths, self.polar
 
+    def visualize(self, **kwargs):
+        return vis_radar(self, **kwargs)
+
     def unload_data(self):
         self.timestamps = None
         self.azimuths = None
@@ -146,3 +152,74 @@ class Radar(Sensor):
         self.max_range = None
         self.gain = None
         self.offset = None
+
+    def polar_to_cart(
+        self, cart_resolution, cart_pixel_width, polar=None, in_place=True
+    ):
+        """Converts a polar scan from polar to Cartesian format
+
+        Args:
+            cart_resolution (float): resolution of the output Cartesian image in (m / pixel)
+            cart_pixel_width (int): width of the output Cartesian image in pixels
+            polar (np.ndarray): if supplied, this function will use this input and not self.polar.
+            in_place (bool): if True, self.cartesian is updated.
+        """
+        if polar is None:
+            polar = self.polar
+        cartesian = radar_polar_to_cartesian(
+            self.azimuths, polar, self.resolution, cart_resolution, cart_pixel_width
+        )
+        if in_place:
+            self.cartesian = cartesian
+        return cartesian
+
+
+class Sonar(Sensor):
+    def __init__(self, path):
+        Sensor.__init__(self, path)
+
+        # Model: M3000d (freq: 1.2MHz)
+        #  Max range: 30m
+        #  Max range: 0.1m
+        #  Num bearings = 512, from -65deg to 65deg
+        #  Bearings per degree = 100
+        #  Image:  378 (range bins) x 512 (beams)
+        self.deg_per_enc = 0.01
+        self.min_range = 0.1
+        self.max_range = 30
+
+        self.azimuths = None
+        self.polar = None
+        self.resolution = None
+        self.cartesian = None
+
+    def load_data(self):
+        self.azimuths, self.polar, self.resolution = load_sonar(
+            self.path, self.deg_per_enc, self.min_range, self.max_range
+        )
+
+    def visualize(self, **kwargs):
+        return vis_sonar(self, **kwargs)
+
+    def polar_to_cart(
+        self, cart_resolution, cart_pixel_height, polar=None, in_place=True
+    ):
+        if polar is None:
+            polar = self.polar
+
+        cartesian = sonar_polar_to_cartesian(
+            self.azimuths,
+            polar,
+            self.resolution,
+            cart_resolution,
+            cart_pixel_height,
+        )
+        if in_place:
+            self.cartesian = cartesian
+        return cartesian
+
+    def unload_data(self):
+        self.azimuths = None
+        self.polar = None
+        self.resolution = None
+        self.cartesian = None

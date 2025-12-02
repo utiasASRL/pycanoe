@@ -14,7 +14,6 @@ def vis_camera(cam, figsize=(20.48, 11.52), dpi=100, show=True, save=None):
     return ax
 
 
-# TODO: change defaults
 def vis_lidar(
     lidar,
     fig_size=(10, 10),
@@ -30,7 +29,6 @@ def vis_lidar(
 ):
     p = lidar.points
 
-    # Choose color
     if color == "x":
         c = p[:, 0]
     elif color == "y":
@@ -46,14 +44,13 @@ def vis_lidar(
     else:
         print("warning: color: {} is not valid. Defaulting to 'z'".format(color))
         c = p[:, 2]
+
     if color_vec is not None:
         c = color_vec
-    # Min & max colors (only used if color_vec NOT set)
     if vmin is None or vmax is None:
         vmin = np.min(c)
         vmax = np.max(c)
 
-    # Plot
     fig = plt.figure(figsize=fig_size)
     ax = fig.add_subplot(projection="3d")
     ax.azim += azim_delta
@@ -63,6 +60,7 @@ def vis_lidar(
     zs = p[:, 2]
     ax.set_box_aspect((np.ptp(xs), np.ptp(ys), np.ptp(zs)))
     ax.set_axis_off()
+
     if color_vec is None:
         ax.scatter(
             xs=xs,
@@ -78,7 +76,6 @@ def vis_lidar(
     else:
         ax.scatter(xs=xs, ys=ys, zs=zs, s=0.1, c=c, depthshade=False)
 
-    # Show & Save
     if show:
         plt.show()
     if save is not None:
@@ -126,3 +123,66 @@ def bilinear_interp(img, X, Y):
     f[mask] = f_y1[mask]
 
     return f.squeeze()
+
+
+def vis_radar(
+    rad,
+    figsize=(10, 10),
+    dpi=100,
+    cart_resolution=None,
+    cart_pixel_width=640,
+    cmap="gray",
+    show=True,
+    save=None,
+):
+    if cart_resolution is None:
+        cart_resolution = rad.resolution * 5
+
+    cart = rad.polar_to_cart(
+        cart_resolution=cart_resolution,
+        cart_pixel_width=cart_pixel_width,
+        in_place=False,
+    )
+    fig = plt.figure(figsize=figsize, dpi=dpi)
+    ax = fig.add_subplot()
+    ax.imshow(cart, cmap=cmap)
+    ax.set_axis_off()
+    if show:
+        plt.show()
+    if save is not None:
+        plt.savefig(save, bbox_inches="tight")
+    return ax
+
+
+def vis_sonar(
+    son,
+    figsize=(10, 10),
+    dpi=100,
+    cart_resolution=None,
+    cart_pixel_height=320,
+    cmap="gray",
+    show=True,
+    save=None,
+    use_polar=False,
+):
+    if cart_resolution is None:
+        cart_resolution = son.resolution * 1.2
+
+    if use_polar:
+        im = son.polar
+    else:
+        im = son.polar_to_cart(
+            cart_resolution=cart_resolution,
+            cart_pixel_height=cart_pixel_height,
+            in_place=False,
+        )
+
+    fig = plt.figure(figsize=figsize, dpi=dpi)
+    ax = fig.add_subplot()
+    ax.imshow(im, cmap=cmap)
+    ax.set_axis_off()
+    if show:
+        plt.show()
+    if save is not None:
+        plt.savefig(save, bbox_inches="tight")
+    return ax

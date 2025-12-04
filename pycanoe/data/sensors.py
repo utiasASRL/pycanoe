@@ -178,11 +178,13 @@ class Sonar(Sensor):
     def __init__(self, path):
         Sensor.__init__(self, path)
 
+        # NOTE: polar to cart conversion performed such that x->range direction, y->left
+
         # Model: M3000d (freq: 1.2MHz)
         #  Max range: 30m
-        #  Max range: 0.1m
+        #  Min range: 0.1m
         #  Num bearings = 512, from -65deg to 65deg
-        #  Bearings per degree = 100
+        #  Degrees per encoding value = 0.01
         #  Image:  378 (range bins) x 512 (beams)
         self.deg_per_enc = 0.01
         self.min_range = 0.1
@@ -197,9 +199,6 @@ class Sonar(Sensor):
         self.azimuths, self.polar, self.resolution = load_sonar(
             self.path, self.deg_per_enc, self.min_range, self.max_range
         )
-
-    def visualize(self, **kwargs):
-        return vis_sonar(self, **kwargs)
 
     def polar_to_cart(
         self, cart_resolution, cart_pixel_height, polar=None, in_place=True
@@ -217,6 +216,9 @@ class Sonar(Sensor):
         if in_place:
             self.cartesian = cartesian
         return cartesian
+
+    def visualize(self, **kwargs):
+        return vis_sonar(self, **kwargs)
 
     def unload_data(self):
         self.azimuths = None

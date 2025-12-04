@@ -280,11 +280,20 @@ def load_sonar(
 
     Args:
         path: path to sonar image
+        deg_per_enc (float): degree increment per encoder increment (conversion from enc # -> deg)
+        min_range (float): minimum detectable range from the sonar sensor
+        max_range (float): max detectable range from sonar sensor
 
+    Outputs:
+        azimuths (np.ndarray): azimuth for each range measurement (in radians) (N_bearings,1)
+        fft_data (np.ndarray): sonar power readings along each azimuth
+        resolution (float): range per pixel (m/pix)
     """
     raw_data = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
     bearings = raw_data[:2, :].transpose().copy().view(np.int16)  # 2xNb -> Nbx2 -> Nbx1
-    fft_data = raw_data[2:, :].astype(np.float32) / 255.0  # Nr x Nb (range x bearing)
+    fft_data = (
+        raw_data[2:, :].astype(np.float32) / 255.0
+    )  # Nr x Nb (range x bearing), 0-1
     num_range, num_bearing = fft_data.shape
 
     # Bearings -> Azimuth (encoder -> degree -> radian)
@@ -308,6 +317,16 @@ def sonar_polar_to_cartesian(
     cart_resolution,
     cart_pixel_height,
 ):
+    """
+    Args:
+        azimuths (np.ndarray): Rotation for each polar sonar azimuth (radians)
+        fft_data (np.ndarray): Polar sonar power readings
+        sonar_resolution (float): Resolution of the polar sonar data (m/pix)
+        cart_resolution (float): Cartesian resolution (for visualization only) (m/pix)
+        cart_pixel_height (int): height of the returned cartesian output (pixels)
+    Returns:
+        cart (np.ndarray): Cartesian sonar power readings
+    """
     cart_max_range = (cart_pixel_height - 0.5) * cart_resolution
     # cart_pixel_width = 2* cart_pixel_height
 
@@ -355,6 +374,7 @@ def load_radar(path, encoder_size, min_range, max_range):
         valid (np.ndarray) Mask of whether azimuth data is an original sensor reading or interpolated from adjacent
             azimuths
         fft_data (np.ndarray): Radar power readings along each azimuth
+        resolution (float): range per pixel (m/pix)
     """
     # t = get_time_from_filename(path)
     raw_data = cv2.imread(path, cv2.IMREAD_GRAYSCALE)

@@ -72,7 +72,8 @@ def get_state_from_gt_data(gt):
 
     Output:
         pose (T_enuref_sensor),
-
+        velocity (v_sensor_enuref_in_enuref, w_sensor_enuref_in_enuref),
+        body_rate (v_sensor_enuref_in_sensor, w_sensor_enuref_in_sensor)
     """
     data = np.array(gt, dtype=np.float64)
 
@@ -200,7 +201,7 @@ def get_closest_index(query, targets):
     return idx
 
 
-def get_closest_frame(query_time, frame_times, frames, threshold=3.0):
+def get_closest_frame(query_time, frame_times, frames, threshold=5.0):
     """Retrieve the closest frame to query_time.
 
     Args:

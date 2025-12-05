@@ -16,7 +16,7 @@ def vis_camera(cam, figsize=(20.48, 11.52), dpi=100, show=True, save=None):
 
 def vis_lidar(
     lidar,
-    fig_size=(10, 10),
+    figsize=(10, 10),
     cmap="winter",
     color="intensity",
     color_vec=None,
@@ -51,7 +51,7 @@ def vis_lidar(
         vmin = np.min(c)
         vmax = np.max(c)
 
-    fig = plt.figure(figsize=fig_size)
+    fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(projection="3d")
     ax.azim += azim_delta
     ax.elev += elev_delta
@@ -156,7 +156,7 @@ def vis_radar(
 
 def vis_sonar(
     son,
-    figsize=(10, 10),
+    figsize=(10, 5),
     dpi=100,
     cart_resolution=None,
     cart_pixel_height=320,

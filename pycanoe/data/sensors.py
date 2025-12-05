@@ -2,6 +2,7 @@ import os.path as osp
 from pathlib import Path
 import cv2
 import yaml
+import numpy as np
 
 from pycanoe.data.pointcloud import PointCloud
 from pycanoe.utils.utils import (
@@ -37,7 +38,12 @@ class Sensor:
         if len(p.parts) >= 3:
             self.seqID = p.parts[-3]
 
-        # TODO: self.pose, self.velocity, self.body_rate
+        # State: pose, velocity, body rate
+        self.pose = np.identity(4, dtype=np.float64)  # T_enu_sensor
+        # Velocity: 6x1 velocity in ENU frame [v_se_in_e; w_se_in_e]
+        self.velocity = np.zeros((6, 1))
+        # Body rate: 6x1 velocity in sensor frame [v_se_in_s; w_se_in_s]
+        self.body_rate = np.zeros((6, 1))
 
         # TODO: Add try/except (catching specific exception)
         self.timestamp = get_time_from_filename(self.frame)

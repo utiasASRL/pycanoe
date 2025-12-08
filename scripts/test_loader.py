@@ -1,4 +1,3 @@
-import os.path as osp
 import cv2
 from tqdm import tqdm
 from datetime import datetime, timezone
@@ -8,8 +7,6 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 
 from pycanoe.data.sequence import Sequence
-from pycanoe.data.sensors import Camera, Lidar, Radar, Sonar
-from pycanoe.utils.utils import _get_closest_file_in_dir
 
 matplotlib.use("Agg")
 
@@ -17,18 +14,6 @@ canoe_path = "/home/otter/otter_data_processed/canoe/"
 seq_id = "canoe-2025-08-21-19-00"
 seq_start = str(int(1755802837617698 + 120 * 1e6))
 seq_end = str(int(1755802837617698 + 130 * 1e6))  # 30 seconds
-
-# region: old args
-cam_path = "/home/otter/otter_data_processed/canoe/canoe-2025-08-21-11-31/cam_left/1755780121273456.png"
-# cam_path = "/home/otter/otter_data_processed/canoe/canoe-2025-08-28-14-13/cam_left/1756391243520667.png"
-# cam_path = "/home/otter/otter_data_processed/canoe/canoe-2025-08-28-16-15/cam_left/1756398248869829.png"
-# cam_path = "/home/otter/otter_data_processed/canoe/canoe-2025-08-20-18-07/cam_left/1755720150846574.png"
-
-cam_show = False
-lid_show = False
-rad_show = False
-son_show = True
-# endregion
 
 
 def write_cam_left_video(
@@ -96,55 +81,37 @@ def visualize_all_sensors(cam, rad, lid, son, save=None):
     name = utc_datetime.strftime("%Y/%m/%d %I:%M:%S%p")
 
     fig, axs = plt.subplots(2, 2, figsize=(32, 23))
+    fig.set_facecolor("black")
+    fig.patch.set_facecolor("black")
 
     # Steal content from each visualization
-    ax_cam = cam.visualize(show=False)
-    axs[0, 0].imshow(ax_cam.get_images()[0].get_array())
+    axs[0, 0].imshow(cam.img)
     axs[0, 0].axis("off")
     axs[0, 0].set_aspect("auto")
-    plt.close(ax_cam.figure)
 
-    ax_rad = rad.visualize(
-        figsize=(11.52, 11.52),
+    im_rad = dash_radar(
+        rad,
         cart_resolution=rad.resolution * 4,
         cart_pixel_width=1152,
-        show=False,
     )
-    axs[0, 1].imshow(ax_rad.get_images()[0].get_array(), cmap="gray")
+    axs[0, 1].imshow(im_rad, cmap="gray")
     axs[0, 1].axis("off")
     axs[0, 1].set_aspect("auto")
-    plt.close(ax_rad.figure)
 
-    ax_son = son.visualize(
-        figsize=(20.48, 11.52),
+    im_son = dash_sonar(
+        son,
         cart_pixel_height=1152,
         cart_resolution=son.resolution * 0.33,
-        show=False,
     )
-    axs[1, 0].imshow(ax_son.get_images()[0].get_array(), cmap="gray")
+    axs[1, 0].imshow(im_son, cmap="gray")
     axs[1, 0].axis("off")
     # axs[1,0].set_aspect('auto')
-    plt.close(ax_son.figure)
 
     # Render lidar to image
-    ax_lid = lid.visualize(
-        figsize=(11.52, 11.52),
-        # elev_delta=-120,
-        # azim_delta=150,
-        elev_delta=0,
-        azim_delta=0,
-        color="distance",
-        show=False,
-    )
-    ax_lid.set_facecolor("black")
-    ax_lid.figure.patch.set_facecolor("black")
-    ax_lid.set_xlim([-100, 100])
-    ax_lid.set_ylim([-100, 100])
-    ax_lid.set_zlim([-3, 20])
-    ax_lid.set_box_aspect((1, 1, 0.3))
-    ax_lid.set_autoscale_on((False))
-    ax_lid.view_init(elev=90, azim=161)
-    #
+    fig_lid = plt.figure(figsize=(11.52, 11.52))
+    ax_lid = fig_lid.add_subplot(projection="3d")
+    ax_lid = dash_lidar(lid, ax_lid, color="distance")
+
     ax_lid.figure.subplots_adjust(left=0, right=1, top=1, bottom=0)
     ax_lid.figure.canvas.draw()
     lid_img = np.frombuffer(ax_lid.figure.canvas.tostring_rgb(), dtype=np.uint8)
@@ -154,7 +121,6 @@ def visualize_all_sensors(cam, rad, lid, son, save=None):
     # axs[1, 1].set_aspect("auto")
     plt.close(ax_lid.figure)
 
-    fig.set_facecolor("black")
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
 
     fig.text(
@@ -205,6 +171,99 @@ def write_dashboard_video(
     writer.release()
 
 
+def dash_lidar(
+    lidar,
+    ax,
+    cmap="winter",
+    color="intensity",
+):
+    p = lidar.points
+
+    if color == "x":
+        c = p[:, 0]
+    elif color == "y":
+        c = p[:, 1]
+    elif color == "z":
+        c = p[:, 2]
+    elif color == "intensity":
+        c = p[:, 3]
+    elif color == "time":
+        c = p[:, 4]
+    elif color == "distance":
+        c = np.sqrt(p[:, 0] ** 2 + p[:, 1] ** 2)
+    else:
+        print("warning: color: {} is not valid. Defaulting to 'z'".format(color))
+        c = p[:, 2]
+
+    xs = p[:, 0]
+    ys = p[:, 1]
+    zs = p[:, 2]
+
+    ax.scatter(
+        xs=xs,
+        ys=ys,
+        zs=zs,
+        s=0.1,
+        c=c,
+        cmap=cmap,
+        depthshade=False,
+    )
+
+    ax.set_xlim([-100, 100])
+    ax.set_ylim([-100, 100])
+    ax.set_zlim([-3, 20])
+    ax.set_box_aspect((1, 1, 0.3))
+    ax.set_autoscale_on((False))
+    ax.view_init(elev=90, azim=161)
+
+    ax.set_facecolor("black")
+    ax.patch.set_facecolor("black")
+    ax.figure.patch.set_facecolor("black")
+    ax.grid(False)
+    ax.xaxis.pane.set_visible(False)
+    ax.yaxis.pane.set_visible(False)
+    ax.zaxis.pane.set_visible(False)
+
+    return ax
+
+
+def dash_radar(
+    rad,
+    cart_resolution=None,
+    cart_pixel_width=640,
+):
+    if cart_resolution is None:
+        cart_resolution = rad.resolution * 5
+
+    cart = rad.polar_to_cart(
+        cart_resolution=cart_resolution,
+        cart_pixel_width=cart_pixel_width,
+        in_place=False,
+    )
+    return cart
+
+
+def dash_sonar(
+    son,
+    cart_resolution=None,
+    cart_pixel_height=320,
+    use_polar=False,
+):
+    if cart_resolution is None:
+        cart_resolution = son.resolution * 1.2
+
+    if use_polar:
+        im = son.polar
+    else:
+        im = son.polar_to_cart(
+            cart_resolution=cart_resolution,
+            cart_pixel_height=cart_pixel_height,
+            in_place=False,
+        )
+
+    return im
+
+
 if __name__ == "__main__":
 
     seq = Sequence(canoe_path, [seq_id, seq_start, seq_end])
@@ -218,45 +277,5 @@ if __name__ == "__main__":
         visualize_all_sensors(cam, rad, lid, son, save=f"out-{i}.png")
     write_dashboard_video(seq, out_path="sens-5.mp4")
     # write_cam_left_video(seq, out_path="vid.mp4")
-
-    """
-    fig = plt.figure(figsize=figsize, dpi=dpi)
-    ax = fig.add_subplot()
-    ax.imshow(cam.img)
-    ax.set_axis_off()
-    ax.set_facecolor("black")
-    return ax
-    """
-
-    if False:
-        cam = Camera(cam_path)
-        cam.load_data()
-        if cam_show:
-            cam.visualize(show=False, save="out.png")
-        cam.unload_data()
-
-        lid_folder = osp.join(cam.seq_root, "lidar")
-        lid_file = _get_closest_file_in_dir(cam.timestamp, lid_folder)
-        lid = Lidar(osp.join(lid_folder, lid_file))
-        lid.load_data()
-        if lid_show:
-            lid.visualize(show=False, save="out.png")
-        lid.unload_data()
-
-        rad_folder = osp.join(cam.seq_root, "radar")
-        rad_file = _get_closest_file_in_dir(cam.timestamp, rad_folder)
-        rad = Radar(osp.join(rad_folder, rad_file))
-        rad.load_data()
-        if rad_show:
-            rad.visualize(show=False, save="out.png")
-        rad.unload_data()
-
-        son_folder = osp.join(cam.seq_root, "sonar")
-        son_file = _get_closest_file_in_dir(cam.timestamp, son_folder)
-        son = Sonar(osp.join(son_folder, son_file))
-        son.load_data()
-        if son_show:
-            son.visualize(show=False, save="out.png")
-        son.unload_data()
 
     pass

@@ -5,8 +5,12 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor as Pool
-
 from pycanoe.data.sequence import Sequence
+
+try:
+    import open3d as o3d
+except ModuleNotFoundError as e:
+    print("WARNING:", e)
 
 matplotlib.use("Agg")
 
@@ -141,11 +145,52 @@ def ts_string_from_utc(ts_sec, utc_to_local):
     return ts.strftime("%Y/%m/%d %I:%M:%S%p")
 
 
+# can't get o3d to work
+def dash_lidar_fast(lidar, img_shape=(800, 800), color="z"):
+    p = lidar.points
+    width, height = img_shape
+
+    color_options = {"x": 0, "y": 1, "z": 2, "intensity": 3, "time": 4}
+
+    if color == "distance":
+        c = np.sqrt(p[:, 0] ** 2 + p[:, 1] ** 2)
+    else:
+        if color not in color_options.keys():
+            print("WARNING: color: {} is not valid. Defaulting to 'z'".format(color))
+            color = "z"
+
+        idx = color_options[color]
+        c = p[:, idx]
+
+    # Normalize
+    c = (c - c.min()) / (c.max() - c.min() + 1e-8)
+    colors = plt.get_cmap("jet")(c)[:, :3]
+
+    # Create 03d
+    cloud = o3d.geometry.PointCloud()
+    cloud.points = o3d.utility.Vector3dVector(p[:, :3])
+    cloud.colors = o3d.utility.Vector3dVector(colors)
+
+    # Renderer
+    render = o3d.visualization.rendering.OffscreenRenderer(width, height)
+    render.scene.set_background([0, 0, 0, 1])  # black
+    render.scene.add_geometry("pc", cloud, o3d.visualization.rendering.MaterialRecord())
+
+    # camera
+    center = np.array([0, 0, 2])
+    eye = np.array([0, -7, 12])
+    up = np.array([0, 0, 1])
+    render.scene.camera.look_at(center, eye, up)
+
+    img = render.render_to_image()
+    return np.asarray(img)
+
+
 def dash_lidar(
     lidar,
     figsize,
     cmap="jet",
-    color="intensity",
+    color="z",
 ):
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(projection="3d")

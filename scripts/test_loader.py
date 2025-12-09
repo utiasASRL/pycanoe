@@ -1,6 +1,6 @@
 import cv2
 from tqdm import tqdm
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,6 +9,8 @@ from concurrent.futures import ProcessPoolExecutor
 from pycanoe.data.sequence import Sequence
 
 matplotlib.use("Agg")
+
+UTC_TO_EDT_OFFSET = -5
 
 canoe_path = "/home/otter/otter_data_processed/canoe/"
 seq_id = "canoe-2025-08-21-19-00"
@@ -77,81 +79,65 @@ def visualize_all_sensors(cam, rad, lid, son, save=None):
     lid.load_data()
     son.load_data()
 
-    utc_datetime = datetime.fromtimestamp(cam.timestamp, tz=timezone.utc)
+    utc_datetime = datetime.fromtimestamp(
+        cam.timestamp, tz=timezone(timedelta(hours=UTC_TO_EDT_OFFSET))
+    )
     name = utc_datetime.strftime("%Y/%m/%d %I:%M:%S%p")
 
-    fig, axs = plt.subplots(2, 2, figsize=(32, 23))
-    fig.set_facecolor("black")
-    fig.patch.set_facecolor("black")
+    h1 = 1152
+    h2 = 1152
+    w1 = 2048
+    w2 = 1152
+    tot_img = np.zeros((h1 + h2, w1 + w2, 3), dtype=np.uint8)
 
-    # Steal content from each visualization
-    axs[0, 0].imshow(cam.img)
-    axs[0, 0].axis("off")
-    axs[0, 0].set_aspect("auto")
+    cam_img = cam.img  # (1152,2048,3)
+    tot_img[0:h1, 0:w1, :] = cam_img
 
-    im_rad = dash_radar(
+    rad_img = dash_radar(  # (1152,1152)
         rad,
         cart_resolution=rad.resolution * 4,
         cart_pixel_width=1152,
     )
-    axs[0, 1].imshow(im_rad, cmap="gray")
-    axs[0, 1].axis("off")
-    axs[0, 1].set_aspect("auto")
+    rad_img_rgb = (np.tile(rad_img[:, :, np.newaxis], 3) * 255).astype(np.uint8)
+    tot_img[0:h1, w1 : w1 + w2, :] = rad_img_rgb
 
-    im_son = dash_sonar(
+    son_img = dash_sonar(  # (1024,2048)
         son,
-        cart_pixel_height=1152,
-        cart_resolution=son.resolution * 0.33,
+        cart_pixel_height=2048 // 2,
+        cart_resolution=son.resolution * 0.38,
     )
-    axs[1, 0].imshow(im_son, cmap="gray")
-    axs[1, 0].axis("off")
-    # axs[1,0].set_aspect('auto')
+    son_height = son_img.shape[0]
+    son_img_rgb = (np.tile(son_img[:, :, np.newaxis], 3) * 255).astype(np.uint8)
+    tot_img[h1 : h1 + son_height, 0:w1, :] = son_img_rgb
 
-    # Render lidar to image
-    fig_lid = plt.figure(figsize=(11.52, 11.52))
-    ax_lid = fig_lid.add_subplot(projection="3d")
-    ax_lid = dash_lidar(lid, ax_lid, color="distance")
+    lid_img = dash_lidar(lid, figsize=(11.52, 11.52), color="distance")  # (1152,152,3)
+    tot_img[h2:, w1:, :] = lid_img
 
-    ax_lid.figure.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    ax_lid.figure.canvas.draw()
-    lid_img = np.frombuffer(ax_lid.figure.canvas.tostring_rgb(), dtype=np.uint8)
-    lid_img = lid_img.reshape(ax_lid.figure.canvas.get_width_height()[::-1] + (3,))
-    axs[1, 1].imshow(lid_img)
-    axs[1, 1].axis("off")
-    # axs[1, 1].set_aspect("auto")
-    plt.close(ax_lid.figure)
+    img_bgr = cv2.cvtColor(tot_img, cv2.COLOR_RGB2BGR)
 
-    plt.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
-
-    fig.text(
-        0.005,
-        0.005,
+    cv2.putText(
+        img_bgr,
         name,
-        color="white",
-        fontsize=48,
-        verticalalignment="bottom",
-        family="serif",
+        (20, h1 + h2 - 20),
+        fontFace=cv2.FONT_HERSHEY_TRIPLEX,
+        color=(255, 255, 255),
+        fontScale=2.5,
+        thickness=2,
     )
 
     if save:
-        plt.savefig(save)
+        cv2.imwrite(save, img_bgr)
 
-    # Render to numpy array
-    fig.canvas.draw()
-    img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
-    plt.close(fig)
-
-    return img
+    return tot_img
 
 
 def write_dashboard_video(
     seq,
     out_path,
-    img_shape=(3200, 2300),
+    img_shape=(3200, 2304),
     fps=100,  # cam 10hz, 100fps = 10x real time
 ):
+    seq.synchronize_frames(ref="cam_left")
 
     writer = get_video_writer(out_path, img_shape, fps)
     total_frames = len(seq.camleft_frames)
@@ -173,10 +159,13 @@ def write_dashboard_video(
 
 def dash_lidar(
     lidar,
-    ax,
-    cmap="winter",
+    figsize,
+    cmap="jet",
     color="intensity",
 ):
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(projection="3d")
+
     p = lidar.points
 
     if color == "x":
@@ -224,7 +213,15 @@ def dash_lidar(
     ax.yaxis.pane.set_visible(False)
     ax.zaxis.pane.set_visible(False)
 
-    return ax
+    ax.figure.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    ax.figure.canvas.draw()
+    lid_img = np.frombuffer(ax.figure.canvas.tostring_rgb(), dtype=np.uint8)
+    lid_img = lid_img.reshape(ax.figure.canvas.get_width_height()[::-1] + (3,))
+    # plt.subplots_adjust(left=0, right=1, top=1, bottom=0, wspace=0, hspace=0)
+
+    plt.close(fig)
+
+    return lid_img
 
 
 def dash_radar(

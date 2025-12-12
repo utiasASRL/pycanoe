@@ -8,6 +8,14 @@ import os.path as osp
 import csv
 
 
+def sec_to_micro(sec):
+    return round(sec * 1e6)
+
+
+def micro_to_sec(micro):
+    return round(micro / 1e6, 6)
+
+
 def get_time_from_filename(file: str) -> float:
     """Retrieve an epoch time from a file name in seconds."""
     tstr = str(Path(file).stem)

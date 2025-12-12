@@ -16,6 +16,9 @@ class CanoeDataset:
         self.camright_frames = []
         self.sonar_frames = []
 
+        self.motor_frames = []
+        self.imu_frames = []
+
         self.sequences = []
         self.seqDict = {}  # seq string to index
 
@@ -44,6 +47,8 @@ class CanoeDataset:
             self.camleft_frames += seq.camleft_frames
             self.camright_frames += seq.camright_frames
             self.sonar_frames += seq.sonar_frames
+            self.motor_frames += seq.motor_frames
+            self.imu_frames += seq.imu_frames
             self.seqDict[seq.ID] = len(self.seqDict)
             if verbose:
                 seq.print()
@@ -54,6 +59,8 @@ class CanoeDataset:
             print("total lidar frames: {}".format(len(self.lidar_frames)))
             print("total radar frames: {}".format(len(self.radar_frames)))
             print("total sonar frames: {}".format(len(self.sonar_frames)))
+            print("total motor frames: {}".format(len(self.motor_frames)))
+            print("total imu frames: {}".format(len(self.imu_frames)))
 
     def get_seq_from_ID(self, ID):
         return self.sequences[self.seqDict[ID]]
@@ -80,3 +87,11 @@ class CanoeDataset:
     def get_sonar(self, idx):
         self.sonar_frames[idx].load_data()
         return self.sonar_frames[idx]
+
+    def get_motor(self, idx):
+        self.motor_frames[idx].load_data()
+        return self.motor_frames[idx]
+
+    def get_imu(self, idx):
+        self.imu_frames[idx].load_data()
+        return self.imu_frames[idx]

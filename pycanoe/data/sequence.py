@@ -3,6 +3,7 @@ import os.path as osp
 
 from pycanoe.data.calib import Calib
 from pycanoe.data.sensors import Lidar, Radar, Sonar, Camera
+from pycanoe.data.auxsensors import Motor, IMU, AuxCSV
 from pycanoe.utils.utils import get_closest_frame
 
 
@@ -39,6 +40,9 @@ class Sequence:
         self.camleft_root = osp.join(self.seq_root, "cam_left")
         self.camright_root = osp.join(self.seq_root, "cam_right")
 
+        self.motor_csv_path = osp.join(self.seq_root, "motor", "power.csv")
+        self.imu_csv_path = osp.join(self.seq_root, "imu", "imu.csv")
+
         self._check_dataroot_valid()  # Check if folder structure correct
 
         self.calib = Calib(self.calib_root)
@@ -50,13 +54,15 @@ class Sequence:
 
     def print(self):
         print("SEQ: {}".format(self.ID))
-        if self.end_ts_micro != self.dummy_ts:
+        if self.start_ts_micro != "0":
             print("START: {} END: {}".format(self.start_ts_micro, self.end_ts_micro))
         print("lidar frames: {}".format(len(self.lidar_frames)))
         print("radar frames: {}".format(len(self.radar_frames)))
         print("sonar frames: {}".format(len(self.sonar_frames)))
         print("cam_right frames: {}".format(len(self.camright_frames)))
         print("cam_left frames: {}".format(len(self.camleft_frames)))
+        print("motor frames: {}".format(len(self.motor_frames)))
+        print("imu frames: {}".format(len(self.imu_frames)))
         print("-------------------------------")
 
     # region#--- Lidar ---#
@@ -144,6 +150,40 @@ class Sequence:
 
     # endregion
 
+    # region#--- Motor ---#
+    def get_motor(self, idx):
+        self.motor_frames[idx].load_data()
+        return self.motor_frames[idx]
+
+    @property
+    def motor(self):
+        for motor_frame in self.motor_frames:
+            motor_frame.load_data()
+            yield motor_frame
+
+    def get_motor_iter(self):
+        """Retrieves an iterator on motor frames"""
+        return iter(self.motor)
+
+    # endregion
+
+    # region#--- IMU ---#
+    def get_imu(self, idx):
+        self.imu_frames[idx].load_data()
+        return self.imu_frames[idx]
+
+    @property
+    def imu(self):
+        for imu_frame in self.imu_frames:
+            imu_frame.load_data()
+            yield imu_frame
+
+    def get_imu_iter(self):
+        """Retrieves an iterator on imu frames"""
+        return iter(self.imu)
+
+    # endregion
+
     def _check_dataroot_valid(self):
         """Checks if the sequence folder structure is valid"""
         if not osp.isdir(self.novatel_root):
@@ -155,6 +195,7 @@ class Sequence:
 
     def _check_download(self):
         """Checks if all sensor data has been downloaded, prints a warning otherwise"""
+        # --- Regular Sensors ---#
         if osp.isdir(self.lidar_root) and len(os.listdir(self.lidar_root)) < len(
             self.lidar_frames
         ):
@@ -180,6 +221,7 @@ class Sequence:
         ):
             print("WARNING: cam right scans are not all downloaded: {}".format(self.ID))
 
+        # --- Ground Truth ---#
         gtfile = osp.join(self.novatel_root, "novatel_poses.csv")
         if not osp.exists(gtfile):
             print(
@@ -220,6 +262,32 @@ class Sequence:
                     frames.append(frame)
         return frames
 
+    def _get_aux_frames(self, csv_path, AuxSensorType):
+        """Initializes aux sensor frame objects using the csv file
+
+        Args:
+            csv_path (str): path to <sensor>.csv
+            AuxSensorType (cls): aux sensor class specific to this sensor
+
+        Returns:
+            frames (list): list of aux sensor frame objects
+        """
+        if not osp.exists(csv_path):
+            print(f"WARNING: CSV path for Aux Sensor ({csv_path}) does not exist.")
+            return []
+
+        frames = []
+        csv = AuxCSV.get_instance(csv_path)
+        timestamps_micro = csv.get_all_timestamps_micro()
+
+        for ts_micro in timestamps_micro:
+            if float(self.start_ts_micro) <= ts_micro and ts_micro <= float(
+                self.end_ts_micro
+            ):
+                frame = AuxSensorType(csv_path, ts_micro)
+                frames.append(frame)
+        return frames
+
     def get_all_frames(self):
         """Convenience method for retrieving sensor frames of all types"""
         lfile = osp.join(self.novatel_root, "lidar_poses.csv")
@@ -238,6 +306,9 @@ class Sequence:
             crfile, self.camright_root, ".png", Camera
         )
 
+        self.motor_frames = self._get_aux_frames(self.motor_csv_path, Motor)
+        self.imu_frames = self._get_aux_frames(self.imu_csv_path, IMU)
+
     def reset_frames(self):
         """Resets all frames, removes downloaded data"""
         self.get_all_frames()
@@ -249,7 +320,7 @@ class Sequence:
         in time as they can be.
 
         Args:
-            ref (str): [cam_left, cam_right, lidar, radar, sonar] this determines which sensor's frames will be used as the
+            ref (str): [cam_left, cam_right, lidar, radar, sonar, motor] this determines which sensor's frames will be used as the
                 reference for synchronization. This sensor's list of frames will not be modified. However,
                 the other lists of sensor frames will be modified so that each index will approximately
                 align with the reference in time.
@@ -260,11 +331,18 @@ class Sequence:
             "sonar": self.sonar_frames,
             "cam_left": self.camleft_frames,
             "cam_right": self.camright_frames,
+            "motor": self.motor_frames,
+            "imu": self.imu_frames,
         }
         synch_sens = {}
 
         if ref not in sensors.keys():
             raise ValueError(f"Sensor {ref} not valid option for synchronizing frames.")
+
+        if ref == "imu":
+            print(
+                "WARNING: Synchronizing frames to IMU is NOT recommended as IMU rate is much higher than other sensors."
+            )
 
         ref_stamps = [frame.timestamp for frame in sensors[ref]]
 
@@ -290,3 +368,5 @@ class Sequence:
         self.sonar_frames = synch_sens["sonar"]
         self.camleft_frames = synch_sens["cam_left"]
         self.camright_frames = synch_sens["cam_right"]
+        self.motor_frames = synch_sens["motor"]
+        self.imu_frames = synch_sens["imu"]

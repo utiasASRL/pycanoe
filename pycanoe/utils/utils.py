@@ -367,7 +367,8 @@ def sonar_polar_to_cartesian(
     return cart
 
 
-# TODO: add gain & offset?
+# TODO: use gain & offset somewhere
+# TODO: determine format for timestamps (currently nanosec)***
 def load_radar(path, encoder_size, min_range, max_range):
     """Decode a radar image w/ Oxford convention for encoding.
 

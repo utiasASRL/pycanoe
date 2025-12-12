@@ -313,7 +313,7 @@ class Sequence:
         """Resets all frames, removes downloaded data"""
         self.get_all_frames()
 
-    def synchronize_frames(self, ref="cam_left"):
+    def synchronize_frames(self, ref="cam_left", threshold=5.0):
         """Simulates having synchronous measurements
         NOTE: measurements still won't be at the exact same timestamp and will have different poses
         However, for a given reference index, the other measurements will be as close to the reference
@@ -324,6 +324,7 @@ class Sequence:
                 reference for synchronization. This sensor's list of frames will not be modified. However,
                 the other lists of sensor frames will be modified so that each index will approximately
                 align with the reference in time.
+            threshold (float): allowable time difference between frames (seconds)
         """
         sensors = {
             "lidar": self.lidar_frames,
@@ -359,7 +360,9 @@ class Sequence:
             sens_stamps = [frame.timestamp for frame in sens_frames]
 
             synch_sens[sens] = [
-                get_closest_frame(ref_stamp, sens_stamps, sens_frames)
+                get_closest_frame(
+                    ref_stamp, sens_stamps, sens_frames, threshold=threshold
+                )
                 for ref_stamp in ref_stamps
             ]
 

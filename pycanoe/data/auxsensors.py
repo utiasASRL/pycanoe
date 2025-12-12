@@ -133,6 +133,7 @@ class Motor(AuxSensor):
         self.starboard = None
         self.port = None
         self.total = None
+        self.max = 500
 
     def load_data(self):
         csv = AuxCSV.get_instance(self.csv_path)

@@ -4,7 +4,7 @@ import os.path as osp
 from pycanoe.data.calib import Calib
 from pycanoe.data.sensors import Lidar, Radar, Sonar, Camera
 from pycanoe.data.auxsensors import Motor, IMU, AuxCSV
-from pycanoe.utils.utils import get_closest_frame
+from pycanoe.utils.utils import get_closest_frame, has_gap
 
 
 class Sequence:
@@ -51,6 +51,8 @@ class Sequence:
         self.get_all_frames()
 
         self._check_download()  # prints warning when sensor data missing
+
+        self._check_gaps()  # prints warning when gaps in sensor timestamps (above threshold)
 
     def print(self):
         print("SEQ: {}".format(self.ID))
@@ -221,6 +223,13 @@ class Sequence:
         ):
             print("WARNING: cam right scans are not all downloaded: {}".format(self.ID))
 
+        # --- Aux Sensors ---#
+        if not osp.exists(self.motor_csv_path):
+            print("WARNING: motor input csv not downloaded: {}".format(self.ID))
+
+        if not osp.exists(self.imu_csv_path):
+            print("WARNING: imu csv not downloaded: {}".format(self.ID))
+
         # --- Ground Truth ---#
         gtfile = osp.join(self.novatel_root, "novatel_poses.csv")
         if not osp.exists(gtfile):
@@ -229,6 +238,35 @@ class Sequence:
                     self.ID
                 )
             )
+
+    def _check_gaps(self, max_sec=5):
+        """Checks for gaps in sensor data."""
+        # --- Regular Sensors ---#
+        if osp.isdir(self.lidar_root) and has_gap(self.lidar_frames, max_sec):
+            print(f"WARNING: Gap(s) > {max_sec}s detected b/w lidar frames: {self.ID}")
+
+        if osp.isdir(self.radar_root) and has_gap(self.radar_frames, max_sec):
+            print(f"WARNING: Gap(s) > {max_sec}s detected b/w radar frames: {self.ID}")
+
+        if osp.isdir(self.sonar_root) and has_gap(self.sonar_frames, max_sec):
+            print(f"WARNING: Gap(s) > {max_sec}s detected b/w sonar frames: {self.ID}")
+
+        if osp.isdir(self.camleft_root) and has_gap(self.camleft_frames, max_sec):
+            print(
+                f"WARNING: Gap(s) > {max_sec}s detected b/w cam_left frames: {self.ID}"
+            )
+
+        if osp.isdir(self.camright_root) and has_gap(self.camright_frames, max_sec):
+            print(
+                f"WARNING: Gap(s) > {max_sec}s detected b/w cam_right frames: {self.ID}"
+            )
+
+        # --- Aux Sensors ---#
+        if osp.exists(self.motor_csv_path) and has_gap(self.motor_frames, max_sec):
+            print(f"WARNING: Gap(s) > {max_sec}s detected b/w motor frames: {self.ID}")
+
+        if osp.exists(self.imu_csv_path) and has_gap(self.imu_frames, max_sec):
+            print(f"WARNING: Gap(s) > {max_sec}s detected b/w imu frames: {self.ID}")
 
     def _get_frames(self, posefile, root, ext, SensorType):
         """Initializes sensor frame objects with their ground truth pose information

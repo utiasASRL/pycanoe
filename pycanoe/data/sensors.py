@@ -172,8 +172,17 @@ class Radar(Sensor):
         """
         if polar is None:
             polar = self.polar
+
+        # Check if scan incomplete (if so, don't interpolate)
+        # complete = np.all(self.timestamps != 0)
+
         cartesian = radar_polar_to_cartesian(
-            self.azimuths, polar, self.resolution, cart_resolution, cart_pixel_width
+            self.azimuths,
+            polar,
+            self.resolution,
+            cart_resolution,
+            cart_pixel_width,
+            # interpolate_crossover=complete,
         )
         if in_place:
             self.cartesian = cartesian

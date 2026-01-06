@@ -119,6 +119,10 @@ class AuxCSV:
         return self.timestamps_micro
 
 
+# TODO: grab all within range
+# TODO: (future) second multiplier to enable different granularity
+
+
 class Motor(AuxSensor):
     """Motor power data.
 

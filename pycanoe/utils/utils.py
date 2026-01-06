@@ -240,6 +240,20 @@ def is_sorted(x):
     return (np.diff(x) >= 0).all()
 
 
+def has_gap(frames, max_sec):
+    stamps = [frame.timestamp for frame in frames]
+    assert is_sorted(stamps), "Frames must be sorted by timestamp."
+    gaps = np.diff(stamps)
+    return np.any(gaps > max_sec)
+
+
+def get_frame_gaps(frames):
+    stamps = [frame.timestamp for frame in frames]
+    assert is_sorted(stamps), "Frames must be sorted by timestamp."
+    gaps = np.diff(stamps)
+    return gaps
+
+
 def load_lidar(path):
     """Load LiDAR pointcloud (N,7) (np.ndarray, np.float64) from path.
 

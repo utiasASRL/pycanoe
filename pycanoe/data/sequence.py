@@ -294,7 +294,7 @@ class Sequence:
         elif osp.isdir(root):
             framenames = sorted([f for f in os.listdir(root) if f.endswith(ext)])
             for framename in framenames:
-                ts = float(framename.split(",")[0])
+                ts = float(framename.split(".")[0])
                 if float(self.start_ts_micro) <= ts and ts <= float(self.end_ts_micro):
                     frame = SensorType(osp.join(root, framename))
                     frames.append(frame)

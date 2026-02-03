@@ -9,11 +9,11 @@ import csv
 
 
 def sec_to_micro(sec):
-    return round(sec * 1e6)
+    return np.round(sec * 1e6)
 
 
 def micro_to_sec(micro):
-    return round(micro / 1e6, 6)
+    return np.round(micro / 1e6, 6)
 
 
 def get_time_from_filename(file: str) -> float:
@@ -32,11 +32,6 @@ def get_time_from_filename_microseconds(file: str) -> int:
     if len(tstr) != 16:
         raise ValueError("Expected 16 digits for epoch time in microseconds.")
     return int(tstr)
-
-
-def _get_times_from_sensor_azimuths(timestamps):
-    """Convert sensor azimuth timestamps from nanosec to seconds w/ microsec precision."""
-    return (timestamps / 1e9).round(6)
 
 
 def get_gt_data_for_frame(seq_root, sens_type, frame):
@@ -68,7 +63,7 @@ def get_gt_data_for_frame(seq_root, sens_type, frame):
 # TODO: Verify this mapping of the sensor_poses.py csv****
 def get_state_from_gt_data(gt):
     """
-    Convert line from sensor_poses.py into sensor state
+    Convert line from <sensor>_poses.py into sensor state
 
     Input Line:
         0: utc_microsec [microsec]
@@ -283,7 +278,7 @@ def load_lidar(path):
             data["y"],
             data["z"],
             data["intensity"].astype(np.float64),
-            _get_times_from_sensor_azimuths(data["timestamp"].astype(np.float64)),
+            np.round(data["timestamp"].astype(np.float64) / 1e6, 6),  # micro to sec
             data["reflectivity"].astype(np.float64),
             data["ambient"].astype(np.float64),
         ),
@@ -381,8 +376,6 @@ def sonar_polar_to_cartesian(
     return cart
 
 
-# TODO: use gain & offset somewhere
-# TODO: determine format for timestamps (currently nanosec)***
 def load_radar(path, encoder_size, min_range, max_range):
     """Decode a radar image w/ Oxford convention for encoding.
 

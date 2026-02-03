@@ -18,12 +18,12 @@ setuptools.setup(
     # url='https://github.com/utiasASRL/canoe-devkit',
     license="BSD",
     packages=setuptools.find_packages(),
-    # TODO: Set up dependencies
-    # python_requires='>=3.8',
-    # install_requires=[
-    # 	"numpy>=1.21.0",
-    # 	"opencv-python>=4.5.3.56",
-    # 	"matplotlib>=3.4.2",
-    # 	"asrl-pysteam>=1.1.0",
-    # ]
+    python_requires=">=3.8",
+    install_requires=[
+        "numpy>=1.21.0,<2",
+        "opencv-python>=4.5.3.56",
+        "matplotlib>=3.7",
+        "PyYAML>=5.4.0",
+        "open3d>=0.13.0",
+    ],
 )

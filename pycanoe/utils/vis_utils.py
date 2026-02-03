@@ -1,5 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+
+try:
+    import open3d as o3d  # noqa: F401
+except ModuleNotFoundError as e:
+    print("WARNING:", e)
 
 
 def vis_camera(cam, figsize=(20.48, 11.52), dpi=100, show=True, save=None):

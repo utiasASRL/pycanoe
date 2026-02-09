@@ -44,9 +44,9 @@ class PointCloud:
             height (int): height of image
             color (str): 'depth' or 'intensity' to pick colors output
         Return:
-            uv (np.ndarray): (N, 2) projected u-v pixel locations in an image
-            colors (np.ndarray): (N,) a color value for each pixel location in uv.
-            mask (np.ndarray): mask to select only points that project onto image.
+            uv (np.ndarray): (N, 2) projected u-v image coords for points
+            colors (np.ndarray): (N,) lid point "colors" (e.g., depth, intensity)
+            mask (np.ndarray): mask for points that fall within image bounds
         """
         x = PointCloud.get_aug(self.points)
         x /= x[:, 2:3]

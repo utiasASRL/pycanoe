@@ -23,13 +23,13 @@ def vis_camera(cam, figsize=(20.48, 11.52), dpi=100, show=True, save=None):
 def vis_lidar(
     lidar,
     figsize=(10, 10),
-    cmap="winter",
-    color="intensity",
+    cmap="jet",
+    color="distance",
     color_vec=None,
     vmin=None,
     vmax=None,
-    azim_delta=-75,
-    elev_delta=-5,
+    azim=160,
+    elev=45,
     show=True,
     save=None,
 ):
@@ -48,8 +48,8 @@ def vis_lidar(
     elif color == "distance":
         c = np.sqrt(p[:, 0] ** 2 + p[:, 1] ** 2)
     else:
-        print("warning: color: {} is not valid. Defaulting to 'z'".format(color))
-        c = p[:, 2]
+        print("warning: color: {} is not valid. Defaulting to 'distance'".format(color))
+        c = np.sqrt(p[:, 0] ** 2 + p[:, 1] ** 2)
 
     if color_vec is not None:
         c = color_vec
@@ -59,8 +59,8 @@ def vis_lidar(
 
     fig = plt.figure(figsize=figsize)
     ax = fig.add_subplot(projection="3d")
-    ax.azim += azim_delta
-    ax.elev += elev_delta
+    ax.azim = azim
+    ax.elev = elev
     xs = p[:, 0]
     ys = p[:, 1]
     zs = p[:, 2]
@@ -193,3 +193,20 @@ def vis_sonar(
     if save is not None:
         plt.savefig(save, bbox_inches="tight")
     return ax
+
+
+def vis_lidar_o3d(lidar, colors=None, coord_frame=False, **kwargs):
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(lidar.points[:, :3])
+
+    if colors is not None:
+        pcd.colors = o3d.utility.Vector3dVector(colors)
+
+    if coord_frame:
+        mesh_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
+            size=3.0,
+            origin=[0, 0, 0],
+        )
+        o3d.visualization.draw_geometries([pcd, mesh_frame], **kwargs)
+    else:
+        o3d.visualization.draw_geometries([pcd], **kwargs)

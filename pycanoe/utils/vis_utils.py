@@ -4,8 +4,9 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
 try:
     import open3d as o3d  # noqa: F401
-except ModuleNotFoundError as e:
-    print("WARNING:", e)
+except ModuleNotFoundError:
+    # print("WARNING:", e)
+    pass
 
 
 def vis_camera(cam, figsize=(20.48, 11.52), dpi=100, show=True, save=None):
@@ -193,6 +194,75 @@ def vis_sonar(
     if save is not None:
         plt.savefig(save, bbox_inches="tight")
     return ax
+
+
+def plot_points_on_img(
+    img,
+    points_uv,
+    points_colors,
+    color_bar=False,
+    show=True,
+    save=None,
+    dpi=100,
+    **plot_args,
+):
+    height, width = img.shape[0:2]
+
+    default_params = {
+        "marker": ".",
+        "s": 10,
+        "edgecolors": "none",
+        "alpha": 0.7,
+        "cmap": "jet",
+    }
+    params = {**default_params, **plot_args}
+
+    # Create figure
+    fig = plt.figure(figsize=(width / dpi, height / dpi), dpi=dpi)
+    ax = fig.add_subplot()
+    ax.imshow(img)
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    sc = ax.scatter(points_uv[:, 0], points_uv[:, 1], c=points_colors, **params)
+    ax.set_axis_off()
+    ax.invert_yaxis()
+
+    if color_bar:
+        plt.colorbar(sc, ax=ax, fraction=0.03, pad=0)
+    if save is not None:
+        plt.savefig(save, bbox_inches="tight")
+    if show:
+        plt.show()
+    return fig
+
+
+def convert_to_bev(
+    cart_points: np.ndarray, cart_resolution: float, cart_pixel_width: int
+) -> np.ndarray:
+    """Converts points from metric cartesian coordinates into pixel coordinates in the BEV image
+
+    Args:
+        cart_points (np.ndarray): N x 2 array of points (x, y) in metric
+        cart_pixel_width (int): width and height of the output BEV image
+
+    Returns:
+        np.ndarray: N x 2 array of points (u, v) in pixels that can be plotted on the BEV image
+    """
+
+    if (cart_pixel_width % 2) == 0:
+        cart_min_range = (cart_pixel_width / 2 - 0.5) * cart_resolution
+    else:
+        cart_min_range = cart_pixel_width // 2 * cart_resolution
+
+    u = (cart_min_range + cart_points[:, 1]) / cart_resolution
+    v = (cart_min_range - cart_points[:, 0]) / cart_resolution
+
+    mask = (0 < u) * (u < cart_pixel_width)
+    mask *= (0 < v) * (v < cart_pixel_width)
+
+    pixels = np.stack((u, v), axis=1)
+    pixels = pixels[mask]
+    return pixels, mask
 
 
 def vis_lidar_o3d(lidar, colors=None, coord_frame=False, **kwargs):

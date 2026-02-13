@@ -35,6 +35,10 @@ class AuxSensor:
         # NOTE: Aux Sensors have no pose, velocity, bodyrate
 
 
+# TODO: grab all within range
+# TODO: (future) second multiplier to enable different granularity
+
+
 class AuxCSV:
     """Singleton class for managing the CSVs that hold the auxillary sensor data.
 
@@ -117,10 +121,6 @@ class AuxCSV:
     def get_all_timestamps_micro(self):
         self.load_csv()
         return self.timestamps_micro
-
-
-# TODO: grab all within range
-# TODO: (future) second multiplier to enable different granularity
 
 
 class Motor(AuxSensor):

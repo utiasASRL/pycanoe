@@ -189,11 +189,13 @@ class Sequence:
     def _check_dataroot_valid(self):
         """Checks if the sequence folder structure is valid"""
         if not osp.isdir(self.novatel_root):
-            print("WARNING: novatel dir missing from sequence dataroot")
+            print(
+                "WARNING: novatel dir missing from sequence dataroot. This may be a test sequence."
+            )
             # raise ValueError("ERROR: novatel dir missing from sequence dataroot")
         if not osp.isdir(self.calib_root):
-            print("WARNING: calib dir missing from sequence dataroot")
-            # raise ValueError("ERROR: calib dir missing from sequence dataroot")
+            # print("WARNING: calib dir missing from sequence dataroot")
+            raise ValueError("ERROR: calib dir missing from sequence dataroot")
 
     def _check_download(self):
         """Checks if all sensor data has been downloaded, prints a warning otherwise"""

@@ -111,8 +111,7 @@ canoe-YYYY-MM-DD-HH-MM/
 Accessing and downloading the dataset is best done using the AWS CLI. 
 The main S3 bucket can also be browsed through using the S3 console in your internet browser at: 
 
-**TODO: Verify Link**
-[`https://s3.console.aws.amazon.com/s3/buckets/canoe/`](https://s3.console.aws.amazon.com/s3/buckets/canoe/)
+[`https://s3.console.aws.amazon.com/s3/buckets/canoe-data/`](https://s3.console.aws.amazon.com/s3/buckets/canoe-data/)
 
 
 ### Download Instructions
@@ -314,7 +313,7 @@ Targets are extracted from the point clouds of temporally-aligned (<0.001 second
 and a Gauss-Newton optimization is performed that minimizes the nearest neighbour distance between targets.
 The result is stored in T_lidar_radar.txt
 
-***TODO***: Verify this procedure
+***TODO***: Verify procedure
 
 ![Lidar-Radar Calibration Verification Image](figs/lidar-radar.png "Lidar-Radar Calibration Verification Image")**Lidar-Radar Calibration Verification Image**
 

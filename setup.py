@@ -12,18 +12,17 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Blerim Abdullai, Yubo Wang, Mia Thomas",
-    # TODO: Set up email
-    # TODO: Set up URL
-    # author_email='canoe@robotics.utias.utoronto.ca',
-    # url='https://github.com/utiasASRL/canoe-devkit',
+    author_email="canoe@robotics.utias.utoronto.ca",
+    url="https://github.com/utiasASRL/pycanoe",
     license="BSD",
     packages=setuptools.find_packages(),
     python_requires=">=3.8",
     install_requires=[
-        "numpy>=1.21.0,<2",
+        "numpy",
         "opencv-python>=4.5.3.56",
-        "matplotlib>=3.7",
+        "matplotlib",
         "PyYAML>=5.4.0",
-        "open3d>=0.13.0",
+        # "open3d" # not strictly required, make sure matches numpy & matplotlib reqs
+        "scipy>=1.14.0",
     ],
 )

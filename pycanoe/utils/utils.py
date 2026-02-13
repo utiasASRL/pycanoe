@@ -60,7 +60,7 @@ def get_gt_data_for_frame(seq_root, sens_type, frame):
     return None
 
 
-# TODO: Verify this mapping of the sensor_poses.py csv****
+# TODO: Double check final mapping of the sensor_poses.py csv*
 def get_state_from_gt_data(gt):
     """
     Convert line from <sensor>_poses.py into sensor state
@@ -216,9 +216,13 @@ def get_closest_frame(query_time, frame_times, frames, threshold=5.0):
         closest_frame: frame with closest timestamp to query.
     """
     closest = get_closest_index(query_time, frame_times)
-    assert (
-        abs(query_time - frame_times[closest]) < threshold
-    ), "Query and closest target frame separted by more than {}".format(threshold)
+
+    # Note: swapping assertion for warning
+    if abs(query_time - frame_times[closest]) > threshold:
+        print(
+            f"WARNING: Query and closest target frame separted by more than {threshold} sec."
+        )
+
     return frames[closest]
 
 

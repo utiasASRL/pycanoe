@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 try:
     import open3d as o3d  # noqa: F401
@@ -141,18 +142,23 @@ def vis_radar(
     cmap="gray",
     show=True,
     save=None,
+    use_polar=False,
 ):
     if cart_resolution is None:
         cart_resolution = rad.resolution * 5
 
-    cart = rad.polar_to_cart(
-        cart_resolution=cart_resolution,
-        cart_pixel_width=cart_pixel_width,
-        in_place=False,
-    )
+    if use_polar:
+        im = rad.polar
+    else:
+        im = rad.polar_to_cart(
+            cart_resolution=cart_resolution,
+            cart_pixel_width=cart_pixel_width,
+            in_place=False,
+        )
+
     fig = plt.figure(figsize=figsize, dpi=dpi)
     ax = fig.add_subplot()
-    ax.imshow(cart, cmap=cmap)
+    ax.imshow(im, cmap=cmap)
     ax.set_axis_off()
     if show:
         plt.show()
@@ -206,6 +212,23 @@ def plot_points_on_img(
     dpi=100,
     **plot_args,
 ):
+    """Plot colored points on an image.
+
+    Args:
+        img (np.ndarray): Image array (H x W x C).
+        points_uv (np.ndarray): N x 2 array of pixel coordinates (u, v).
+        points_colors (np.ndarray): N array of scalar values used to color points.
+        color_bar (bool or str): If True, display a colorbar. If a string, display
+            a colorbar with the string as its label (e.g. "Distance (m)").
+        show (bool): Whether to call plt.show(). Default True.
+        save (str or None): File path to save the figure. Default None.
+        dpi (int): Figure DPI. Default 100.
+        **plot_args: Additional keyword arguments passed to ax.scatter
+            (e.g. s, cmap, alpha, marker).
+
+    Returns:
+        matplotlib.figure.Figure: The generated figure.
+    """
     height, width = img.shape[0:2]
 
     default_params = {
@@ -213,22 +236,38 @@ def plot_points_on_img(
         "s": 10,
         "edgecolors": "none",
         "alpha": 0.7,
-        "cmap": "jet",
     }
     params = {**default_params, **plot_args}
 
+    # Only use cmap for scalar color data
+    if "cmap" not in params and np.asarray(points_colors).ndim == 1:
+        params["cmap"] = "jet"
+
     # Create figure
     fig = plt.figure(figsize=(width / dpi, height / dpi), dpi=dpi)
-    ax = fig.add_subplot()
+    ax = plt.gca()
     ax.imshow(img)
     ax.set_xlim(0, width)
     ax.set_ylim(0, height)
     sc = ax.scatter(points_uv[:, 0], points_uv[:, 1], c=points_colors, **params)
+    ax.set_aspect("equal")
     ax.set_axis_off()
     ax.invert_yaxis()
 
     if color_bar:
-        plt.colorbar(sc, ax=ax, fraction=0.03, pad=0)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cbar = fig.colorbar(sc, cax=cax)
+
+        # Add ticks for end values
+        vmin, vmax = sc.get_clim()
+        ticks = cbar.get_ticks()
+        ticks = np.concatenate(([vmin], ticks[(ticks > vmin) & (ticks < vmax)], [vmax]))
+        cbar.set_ticks(ticks)
+
+        if isinstance(color_bar, str):
+            cbar.set_label(color_bar, fontsize=15)
+
     if save is not None:
         plt.savefig(save, bbox_inches="tight")
     if show:

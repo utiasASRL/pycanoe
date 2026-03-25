@@ -160,7 +160,7 @@ class Radar(Sensor):
         self.offset = None
 
     def polar_to_cart(
-        self, cart_resolution, cart_pixel_width, polar=None, in_place=True
+        self, cart_resolution=None, cart_pixel_width=640, polar=None, in_place=True
     ):
         """Converts a polar scan from polar to Cartesian format
 
@@ -172,6 +172,9 @@ class Radar(Sensor):
         """
         if polar is None:
             polar = self.polar
+
+        if cart_resolution is None:
+            cart_resolution = self.resolution * 5
 
         # Check if scan incomplete (if so, don't interpolate)
         # complete = np.all(self.timestamps != 0)
@@ -216,10 +219,13 @@ class Sonar(Sensor):
         )
 
     def polar_to_cart(
-        self, cart_resolution, cart_pixel_height, polar=None, in_place=True
+        self, cart_resolution=None, cart_pixel_height=320, polar=None, in_place=True
     ):
         if polar is None:
             polar = self.polar
+
+        if cart_resolution is None:
+            cart_resolution = self.resolution * 1.2
 
         cartesian = sonar_polar_to_cartesian(
             self.azimuths,

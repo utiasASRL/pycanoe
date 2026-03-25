@@ -1,10 +1,12 @@
 import os
 import os.path as osp
 
+import numpy as np
+
 from pycanoe.data.calib import Calib
 from pycanoe.data.sensors import Lidar, Radar, Sonar, Camera
 from pycanoe.data.auxsensors import Motor, IMU, AuxCSV
-from pycanoe.utils.utils import get_closest_frame, has_gap
+from pycanoe.utils.utils import has_gap
 
 
 class Sequence:
@@ -385,7 +387,10 @@ class Sequence:
                 "WARNING: Synchronizing frames to IMU is NOT recommended as IMU rate is much higher than other sensors."
             )
 
-        ref_stamps = [frame.timestamp for frame in sensors[ref]]
+        ref_stamps = np.array([frame.timestamp for frame in sensors[ref]])
+        assert np.all(
+            ref_stamps[:-1] <= ref_stamps[1:]
+        ), f"{ref} timestamps are not sorted."
 
         for sens, sens_frames in sensors.items():
             if sens == ref:
@@ -397,14 +402,30 @@ class Sequence:
                 synch_sens[sens] = sens_frames
                 continue
 
-            sens_stamps = [frame.timestamp for frame in sens_frames]
+            sens_stamps = np.array([frame.timestamp for frame in sens_frames])
+            assert np.all(
+                sens_stamps[:-1] <= sens_stamps[1:]
+            ), f"{sens} timestamps are not sorted."
 
-            synch_sens[sens] = [
-                get_closest_frame(
-                    ref_stamp, sens_stamps, sens_frames, threshold=threshold
+            # Vectorized nearest-neighbor lookup
+            idxs = np.searchsorted(sens_stamps, ref_stamps, side="left")
+            idxs = np.clip(idxs, 0, len(sens_stamps) - 1)
+            # Check if the previous index is closer
+            prev_idxs = np.clip(idxs - 1, 0, len(sens_stamps) - 1)
+            use_prev = np.abs(sens_stamps[prev_idxs] - ref_stamps) < np.abs(
+                sens_stamps[idxs] - ref_stamps
+            )
+            idxs[use_prev] = prev_idxs[use_prev]
+
+            # Warn if any matches exceed threshold
+            diffs = np.abs(sens_stamps[idxs] - ref_stamps)
+            if np.any(diffs > threshold):
+                n = np.sum(diffs > threshold)
+                print(
+                    f"WARNING: {n} {sens} frames separated from ref by more than {threshold} sec."
                 )
-                for ref_stamp in ref_stamps
-            ]
+
+            synch_sens[sens] = [sens_frames[i] for i in idxs]
 
         self.lidar_frames = synch_sens["lidar"]
         self.radar_frames = synch_sens["radar"]

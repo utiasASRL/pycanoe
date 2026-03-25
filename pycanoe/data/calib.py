@@ -12,7 +12,9 @@ class Calib:
         self.T_boat_sonar = np.loadtxt(osp.join(calib_root, "T_boat_sonar.txt"))
         self.T_boat_lidar = np.loadtxt(osp.join(calib_root, "T_boat_lidar.txt"))
         self.T_camleft_lidar = np.loadtxt(osp.join(calib_root, "T_cam_lidar.txt"))
-        self.T_camleft_camright = np.loadtxt(osp.join(calib_root, "T_left_right.txt"))
+        self.T_camleft_camright = np.loadtxt(
+            osp.join(calib_root, "T_camleft_right.txt")
+        )
         self.T_lidar_radar = np.loadtxt(osp.join(calib_root, "T_lidar_radar.txt"))
         self.T_lidar_imu = np.loadtxt(osp.join(calib_root, "T_lidar_imu.txt"))
         self.T_novatel_boat = np.loadtxt(osp.join(calib_root, "T_novatel_boat.txt"))

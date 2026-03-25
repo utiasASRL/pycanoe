@@ -189,7 +189,7 @@ def vis_sonar(
             cart_pixel_height=cart_pixel_height,
             in_place=False,
         )
-    im = np.rot90(im, k=2)
+        im = np.rot90(im, k=2)
 
     fig = plt.figure(figsize=figsize, dpi=dpi)
     ax = fig.add_subplot()

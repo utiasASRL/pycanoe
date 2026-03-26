@@ -100,7 +100,9 @@ def get_state_from_gt_data(gt):
     ) = data[0:16]
 
     T_enuref_sens = np.eye(4)
-    T_enuref_sens[0:3, 0:3] = C_enuref_sens = zyx_ang_to_C(z=ang_z, y=ang_y, x=ang_x)
+    T_enuref_sens[0:3, 0:3] = C_enuref_sens = zyx_ang_rad_to_C(
+        z_rad=ang_z, y_rad=ang_y, x_rad=ang_x
+    )
     T_enuref_sens[0:3, 3] = np.array([x, y, z])
     pose = T_enuref_sens
 
@@ -136,42 +138,45 @@ def get_inverse_tf(T):
     return T2
 
 
-def C1(ang_x):
-    return np.array(
-        [
-            [1, 0, 0],
-            [0, np.cos(ang_x), np.sin(ang_x)],
-            [0, -np.sin(ang_x), np.cos(ang_x)],
-        ],
-        dtype=np.float64,
-    )
+def zyx_ang_rad_to_C(*, z_rad, y_rad, x_rad):
+    """z,y,x angles in radians to C matrix using 321 convention"""
+    return C1(rad=x_rad) @ C2(rad=y_rad) @ C3(rad=z_rad)
 
 
-def C2(ang_y):
-    return np.array(
-        [
-            [np.cos(ang_y), 0, -np.sin(ang_y)],
-            [0, 1, 0],
-            [np.sin(ang_y), 0, np.cos(ang_y)],
-        ],
-        dtype=np.float64,
-    )
+def C_to_zyx_ang_rad(C, eps=1e-15):
+    """C to z,y,x angles in radians using 321 rotation order convention"""
+    i = 2
+    j = 1
+    k = 0
+    c_y = np.sqrt(C[i, i] ** 2 + C[j, i] ** 2)
+    if c_y > eps:
+        ang_x_rad = np.arctan2(C[j, i], C[i, i])
+        ang_y_rad = np.arctan2(-C[k, i], c_y)
+        ang_z_rad = np.arctan2(C[k, j], C[k, k])
+    else:
+        ang_x_rad = 0
+        ang_y_rad = np.arctan2(-C[k, i], c_y)
+        ang_z_rad = np.arctan2(-C[j, k], C[j, j])
+
+    return ang_z_rad, ang_y_rad, ang_x_rad
 
 
-def C3(ang_z):
-    return np.array(
-        [
-            [np.cos(ang_z), np.sin(ang_z), 0],
-            [-np.sin(ang_z), np.cos(ang_z), 0],
-            [0, 0, 1],
-        ],
-        dtype=np.float64,
-    )
+def C1(*, rad: float) -> np.ndarray:
+    """Principal rotation matrix about axis 1 (x), in radians."""
+    c, s = np.cos(rad), np.sin(rad)
+    return np.array([[1, 0, 0], [0, c, s], [0, -s, c]], dtype=np.float64)
 
 
-def zyx_ang_to_C(z, y, x):
-    """z,y,x angles to C matrix using 321 convention"""
-    return C1(x) @ C2(y) @ C3(z)
+def C2(*, rad: float) -> np.ndarray:
+    """Principal rotation matrix about axis 2 (y), in radians."""
+    c, s = np.cos(rad), np.sin(rad)
+    return np.array([[c, 0, -s], [0, 1, 0], [s, 0, c]], dtype=np.float64)
+
+
+def C3(*, rad: float) -> np.ndarray:
+    """Principal rotation matrix about axis 3 (z), in radians."""
+    c, s = np.cos(rad), np.sin(rad)
+    return np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]], dtype=np.float64)
 
 
 def get_closest_index(query, targets):

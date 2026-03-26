@@ -32,8 +32,6 @@ class AuxSensor:
         if len(p.parts) >= 3:
             self.seqID = p.parts[-3]
 
-        # NOTE: Aux Sensors have no pose, velocity, bodyrate
-
 
 # TODO: grab all within range
 # TODO: (future) second multiplier to enable different granularity

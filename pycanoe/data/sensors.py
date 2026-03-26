@@ -29,7 +29,7 @@ class Sensor:
         self.sensor_root = None
         self.seqID = None
 
-        # TODO: Fix for stereo
+        # TODO: Update for stereo?
         # Parse directories
         if len(p.parts) >= 2:
             self.sensType = p.parts[-2]
@@ -45,7 +45,6 @@ class Sensor:
         # Body rate: 6x1 velocity in sensor frame [v_se_in_s; w_se_in_s]
         self.body_rate = np.zeros((6, 1))
 
-        # TODO: Add try/except (catching specific exception)
         self.timestamp = get_time_from_filename(self.frame)
         self.timestamp_micro = get_time_from_filename_microseconds(self.frame)
 

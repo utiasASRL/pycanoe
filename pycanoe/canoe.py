@@ -12,8 +12,8 @@ class CanoeDataset:
 
         self.lidar_frames = []
         self.radar_frames = []
-        self.camleft_frames = []
-        self.camright_frames = []
+        self.cam_left_frames = []
+        self.cam_right_frames = []
         self.sonar_frames = []
 
         self.motor_frames = []
@@ -44,8 +44,8 @@ class CanoeDataset:
         for seq in self.sequences:
             self.lidar_frames += seq.lidar_frames
             self.radar_frames += seq.radar_frames
-            self.camleft_frames += seq.camleft_frames
-            self.camright_frames += seq.camright_frames
+            self.cam_left_frames += seq.cam_left_frames
+            self.cam_right_frames += seq.cam_right_frames
             self.sonar_frames += seq.sonar_frames
             self.motor_frames += seq.motor_frames
             self.imu_frames += seq.imu_frames
@@ -54,8 +54,8 @@ class CanoeDataset:
                 seq.print()
 
         if verbose:
-            print("total cam left frames: {}".format(len(self.camleft_frames)))
-            print("total cam right frames: {}".format(len(self.camright_frames)))
+            print("total cam left frames: {}".format(len(self.cam_left_frames)))
+            print("total cam right frames: {}".format(len(self.cam_right_frames)))
             print("total lidar frames: {}".format(len(self.lidar_frames)))
             print("total radar frames: {}".format(len(self.radar_frames)))
             print("total sonar frames: {}".format(len(self.sonar_frames)))
@@ -69,12 +69,12 @@ class CanoeDataset:
         return self.sequences[idx]
 
     def get_cam_left(self, idx):
-        self.camleft_frames[idx].load_data()
-        return self.camleft_frames[idx]
+        self.cam_left_frames[idx].load_data()
+        return self.cam_left_frames[idx]
 
     def get_cam_right(self, idx):
-        self.camright_frames[idx].load_data()
-        return self.camright_frames[idx]
+        self.cam_right_frames[idx].load_data()
+        return self.cam_right_frames[idx]
 
     def get_lidar(self, idx):
         self.lidar_frames[idx].load_data()

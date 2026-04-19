@@ -39,8 +39,8 @@ class Sequence:
         self.lidar_root = osp.join(self.seq_root, "lidar")
         self.radar_root = osp.join(self.seq_root, "radar")
         self.sonar_root = osp.join(self.seq_root, "sonar")
-        self.camleft_root = osp.join(self.seq_root, "cam_left")
-        self.camright_root = osp.join(self.seq_root, "cam_right")
+        self.cam_left_root = osp.join(self.seq_root, "cam_left")
+        self.cam_right_root = osp.join(self.seq_root, "cam_right")
 
         self.motor_csv_path = osp.join(self.seq_root, "motor", "power.csv")
         self.imu_csv_path = osp.join(self.seq_root, "imu", "imu.csv")
@@ -63,8 +63,8 @@ class Sequence:
         print("lidar frames: {}".format(len(self.lidar_frames)))
         print("radar frames: {}".format(len(self.radar_frames)))
         print("sonar frames: {}".format(len(self.sonar_frames)))
-        print("cam_right frames: {}".format(len(self.camright_frames)))
-        print("cam_left frames: {}".format(len(self.camleft_frames)))
+        print("cam_right frames: {}".format(len(self.cam_right_frames)))
+        print("cam_left frames: {}".format(len(self.cam_left_frames)))
         print("motor frames: {}".format(len(self.motor_frames)))
         print("imu frames: {}".format(len(self.imu_frames)))
         print("-------------------------------")
@@ -122,35 +122,35 @@ class Sequence:
 
     # region#--- Cam Left ---#
     def get_cam_left(self, idx):
-        self.camleft_frames[idx].load_data()
-        return self.camleft_frames[idx]
+        self.cam_left_frames[idx].load_data()
+        return self.cam_left_frames[idx]
 
     @property
-    def camleft(self):
-        for camleft_frame in self.camleft_frames:
-            camleft_frame.load_data()
-            yield camleft_frame
+    def cam_left(self):
+        for cam_left_frame in self.cam_left_frames:
+            cam_left_frame.load_data()
+            yield cam_left_frame
 
     def get_cam_left_iter(self):
         """Retrieves an iterator on cam_left frames"""
-        return iter(self.camleft)
+        return iter(self.cam_left)
 
     # endregion
 
     # region#--- Cam Right ---#
     def get_cam_right(self, idx):
-        self.camright_frames[idx].load_data()
-        return self.camright_frames[idx]
+        self.cam_right_frames[idx].load_data()
+        return self.cam_right_frames[idx]
 
     @property
-    def camright(self):
-        for camright_frame in self.camright_frames:
-            camright_frame.load_data()
-            yield camright_frame
+    def cam_right(self):
+        for cam_right_frame in self.cam_right_frames:
+            cam_right_frame.load_data()
+            yield cam_right_frame
 
     def get_cam_right_iter(self):
         """Retrieves an iterator on cam_right frames"""
-        return iter(self.camright)
+        return iter(self.cam_right)
 
     # endregion
 
@@ -197,7 +197,9 @@ class Sequence:
             # raise ValueError("ERROR: novatel dir missing from sequence dataroot")
         if not osp.isdir(self.calib_root):
             # print("WARNING: calib dir missing from sequence dataroot")
-            raise ValueError("ERROR: calib dir missing from sequence dataroot")
+            raise ValueError(
+                f"ERROR: calib dir ({self.calib_root}) missing from sequence dataroot"
+            )
 
     def _check_download(self):
         """Checks if all sensor data has been downloaded, prints a warning otherwise"""
@@ -217,14 +219,14 @@ class Sequence:
         ):
             print("WARNING: sonar scans are not all downloaded: {}".format(self.ID))
 
-        if osp.isdir(self.camleft_root) and len(os.listdir(self.camleft_root)) < len(
-            self.camleft_frames
+        if osp.isdir(self.cam_left_root) and len(os.listdir(self.cam_left_root)) < len(
+            self.cam_left_frames
         ):
             print("WARNING: cam_left scans are not all downloaded: {}".format(self.ID))
 
-        if osp.isdir(self.camright_root) and len(os.listdir(self.camright_root)) < len(
-            self.camright_frames
-        ):
+        if osp.isdir(self.cam_right_root) and len(
+            os.listdir(self.cam_right_root)
+        ) < len(self.cam_right_frames):
             print("WARNING: cam right scans are not all downloaded: {}".format(self.ID))
 
         # --- Aux Sensors ---#
@@ -255,12 +257,12 @@ class Sequence:
         if osp.isdir(self.sonar_root) and has_gap(self.sonar_frames, max_sec):
             print(f"WARNING: Gap(s) > {max_sec}s detected b/w sonar frames: {self.ID}")
 
-        if osp.isdir(self.camleft_root) and has_gap(self.camleft_frames, max_sec):
+        if osp.isdir(self.cam_left_root) and has_gap(self.cam_left_frames, max_sec):
             print(
                 f"WARNING: Gap(s) > {max_sec}s detected b/w cam_left frames: {self.ID}"
             )
 
-        if osp.isdir(self.camright_root) and has_gap(self.camright_frames, max_sec):
+        if osp.isdir(self.cam_right_root) and has_gap(self.cam_right_frames, max_sec):
             print(
                 f"WARNING: Gap(s) > {max_sec}s detected b/w cam_right frames: {self.ID}"
             )
@@ -341,11 +343,11 @@ class Sequence:
         self.lidar_frames = self._get_frames(lfile, self.lidar_root, ".bin", Lidar)
         self.radar_frames = self._get_frames(rfile, self.radar_root, ".png", Radar)
         self.sonar_frames = self._get_frames(sfile, self.sonar_root, ".png", Sonar)
-        self.camleft_frames = self._get_frames(
-            clfile, self.camleft_root, ".png", Camera
+        self.cam_left_frames = self._get_frames(
+            clfile, self.cam_left_root, ".png", Camera
         )
-        self.camright_frames = self._get_frames(
-            crfile, self.camright_root, ".png", Camera
+        self.cam_right_frames = self._get_frames(
+            crfile, self.cam_right_root, ".png", Camera
         )
 
         self.motor_frames = self._get_aux_frames(self.motor_csv_path, Motor)
@@ -372,8 +374,8 @@ class Sequence:
             "lidar": self.lidar_frames,
             "radar": self.radar_frames,
             "sonar": self.sonar_frames,
-            "cam_left": self.camleft_frames,
-            "cam_right": self.camright_frames,
+            "cam_left": self.cam_left_frames,
+            "cam_right": self.cam_right_frames,
             "motor": self.motor_frames,
             "imu": self.imu_frames,
         }
@@ -430,7 +432,7 @@ class Sequence:
         self.lidar_frames = synch_sens["lidar"]
         self.radar_frames = synch_sens["radar"]
         self.sonar_frames = synch_sens["sonar"]
-        self.camleft_frames = synch_sens["cam_left"]
-        self.camright_frames = synch_sens["cam_right"]
+        self.cam_left_frames = synch_sens["cam_left"]
+        self.cam_right_frames = synch_sens["cam_right"]
         self.motor_frames = synch_sens["motor"]
         self.imu_frames = synch_sens["imu"]

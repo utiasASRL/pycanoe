@@ -1,3 +1,6 @@
+# WIP: needs to be updated to CANOE dataset and docs
+# currently copied from Boreas dataset
+
 import argparse
 import os
 import os.path as osp

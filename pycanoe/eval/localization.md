@@ -1,3 +1,6 @@
+# WIP: needs to be updated to CANOE dataset and docs
+# currently copied from Boreas dataset
+
 # Localization
 
 The purpose of our metric localization leaderboard is to benchmark mapping and localization pipelines. In this scenario, we envision a situation where one or more repeated traversals of the Glen Shields route are used to construct a map offline. Any and all data from the training sequences may be used to construct a map in any fashion.

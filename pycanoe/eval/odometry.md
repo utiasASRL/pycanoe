@@ -1,3 +1,7 @@
+# WIP: needs to be updated to CANOE dataset and docs
+# currently copied from Boreas dataset
+
+
 # Benchmarks
 
 ## Odometry Benchmark

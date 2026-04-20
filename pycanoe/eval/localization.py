@@ -1,3 +1,7 @@
+# This module is adapted from the Pyboreas codebase.
+# Original source: https://github.com/utiasASRL/pyboreas
+# Credit to the Pyboreas authors.
+
 import argparse
 import os
 import os.path as osp
@@ -5,9 +9,15 @@ from pathlib import Path
 
 import numpy as np
 
+from pycanoe.utils.odometry import (
+    read_traj_file_gt2, 
+    get_sequence_velocities_gt
+)
 from pyboreas.data.splits import loc_reference
-from pyboreas.data.metadata_splits import urban_split
-from pyboreas.utils.odometry import plot_loc_stats, read_traj_file2, read_traj_file_gt2, get_sequence_velocities_gt
+from pyboreas.utils.odometry import (
+    plot_loc_stats, 
+    read_traj_file2, 
+)
 from pyboreas.utils.utils import (
     SE3Tose3,
     get_closest_index,
@@ -16,26 +26,26 @@ from pyboreas.utils.utils import (
 )
 
 
-def get_Tas(gtpath, seq, sensor="lidar"):
-    T_applanix_lidar = np.loadtxt(
-        osp.join(gtpath, seq, "calib", "T_applanix_lidar.txt")
+def get_Tbs(gtpath, seq, sensor="lidar"):
+    T_boat_lidar = np.loadtxt(
+        osp.join(gtpath, seq, "calib", "T_boat_lidar.txt")
     )
-    if sensor == "camera":
+    if sensor == "camera": # to do: camleft/camright? maybe need both
         T_camera_lidar = np.loadtxt(
             osp.join(gtpath, seq, "calib", "T_camera_lidar.txt")
         )
-        return np.matmul(T_applanix_lidar, get_inverse_tf(T_camera_lidar))
+        return np.matmul(T_boat_lidar, get_inverse_tf(T_camera_lidar))
     elif sensor == "radar":
-        T_radar_lidar = np.loadtxt(
-            osp.join(gtpath, seq, "calib", "T_radar_lidar.txt")
+        T_lidar_radar = np.loadtxt(
+            osp.join(gtpath, seq, "calib", "lidar_radar.txt")
         )
-        return np.matmul(T_applanix_lidar, get_inverse_tf(T_radar_lidar))
-    elif sensor == "aeva":
-        T_aeva_lidar = np.loadtxt(
-            osp.join(gtpath, seq, "calib", "T_aeva_lidar.txt")
+        return np.matmul(T_boat_lidar, T_lidar_radar)
+    elif sensor == "sonar":
+        T_boat_sonar = np.loadtxt(
+            osp.join(gtpath, seq, "calib", "T_boat_sonar.txt")
         )
-        T_applanix_lidar = np.matmul(T_applanix_lidar, get_inverse_tf(T_aeva_lidar))
-    return T_applanix_lidar
+        return T_boat_sonar
+    return T_boat_lidar
 
 
 def check_time_match(pred_times, gt_times):
@@ -89,21 +99,12 @@ def eval_local(
         [
             f
             for f in os.listdir(predpath)
-            if f.startswith("boreas-20") and f.endswith(".txt") and "err" not in f
+            if f.startswith("canoe-20") and f.endswith(".txt") and "err" not in f
         ]
     )
     gt_seqs = []
     for predfile in pred_files:
         predfile_seq = Path(predfile).stem.split(".")[0]
-        if [predfile_seq] in urban_split:
-            raise Exception(
-                f"prediction file {predfile} is in the urban split, "
-                "which has an inconsistent global accuracy (up to 1m) and is not "
-                "suitable for localization evaluation. Please remove it from the "
-                "prediction set and re-run evaluation. See https://arxiv.org/abs/2602.16870 "
-                "for more details."
-            )
-
         if predfile_seq not in os.listdir(gtpath):
             raise Exception(
                 f"prediction file {predfile} doesn't match ground truth sequence list"
@@ -111,21 +112,21 @@ def eval_local(
         gt_seqs.append(predfile_seq)
 
     gt_ref_poses, gt_ref_times = read_traj_file_gt2(
-        osp.join(gtpath, gt_ref_seq, "applanix", ref_sensor + "_poses.csv"), dim=dim
+        osp.join(gtpath, gt_ref_seq, "novatel", ref_sensor + "_poses.csv"), dim=dim
     )
     seq_rmse = []
     seq_consist = []
     seqs_have_cov = True
     for predfile, seq in zip(pred_files, gt_seqs):
         print("Processing {}...".format(seq))
-        T_as = get_Tas(gtpath, seq, ref_sensor)
-        T_sa = get_inverse_tf(T_as)
+        T_bs = get_Tbs(gtpath, seq, ref_sensor) # T_boat_sensor
+        T_sb = get_inverse_tf(T_bs)
         pred_poses, pred_times, ref_times, cov_matrices, has_cov = read_traj_file2(
             osp.join(predpath, predfile)
         )
         seqs_have_cov *= has_cov
         gt_poses, gt_times = read_traj_file_gt2(
-            osp.join(gtpath, seq, "applanix", test_sensor + "_poses.csv"), dim=dim
+            osp.join(gtpath, seq, "novatel", test_sensor + "_poses.csv"), dim=dim
         )
         # check that pred_times is a 1-to-1 match with gt_times
         check_time_match(pred_times, gt_times)
@@ -146,7 +147,7 @@ def eval_local(
 
             gt_T_s1_s2 = get_inverse_tf(gt_T_enu_s1) @ gt_T_enu_s2
             T = pred_T_s1_s2 @ get_inverse_tf(gt_T_s1_s2)
-            Te = T_as @ T @ T_sa
+            Te = T_bs @ T @ T_sb
             errs.append(compute_errors(Te))
             # If the user submitted a covariance matrix, calculate consistency
             if has_cov:
@@ -214,7 +215,7 @@ if __name__ == "__main__":
     parser.add_argument("--gt", type=str, help="path to groundtruth sequences")
     parser.add_argument(
         "--ref_seq",
-        default=loc_reference,
+        default=loc_reference[0],
         type=str,
         help="Which sequence to use as a reference",
     )
@@ -233,10 +234,12 @@ if __name__ == "__main__":
     parser.add_argument("--dim", default=3, type=int, help="SE(3) or SE(2)")
     parser.add_argument("--plot", type=str, help="path to save plots")
     args = parser.parse_args()
-    assert args.ref_sensor in ["camera", "lidar", "radar", "aeva"]
-    assert args.test_sensor in ["camera", "lidar", "radar", "aeva"]
+    assert args.ref_sensor in ["camera", "lidar", "radar", "sonar"]
+    assert args.test_sensor in ["camera", "lidar", "radar", "sonar"]
     assert args.dim in [2, 3]
     if args.ref_sensor == "radar" or args.test_sensor == "radar":
+        assert args.dim == 2
+    if args.ref_sensor == "sonar" or args.test_sensor == "sonar":
         assert args.dim == 2
     os.makedirs(args.plot, exist_ok=True)
     eval_local(

@@ -1,21 +1,27 @@
+# This module is adapted from the Pyboreas codebase.
+# Original source: https://github.com/utiasASRL/pyboreas
+# Credit to the Pyboreas authors.
+
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import os.path as osp
 
+from pycanoe.utils.odometry import (
+    get_sequence_poses_gt,
+    get_sequence_velocities_gt,
+)
 
 from pyboreas.utils.odometry import (
     compute_kitti_metrics,
     get_sequence_poses,
-    get_sequence_poses_gt,
     get_sequences,
     get_sequence_velocities,
-    get_sequence_velocities_gt,
     compute_vel_metrics
 )
 
 
-def eval_odom(pred="test/demo/pred/3d", gt="test/demo/gt", radar=False, aeva=False):
+def eval_odom(pred="test/demo/pred/3d", gt="test/demo/gt", radar=False, sonar=False):
     # evaluation mode
     dim = 2 if radar else 3
 
@@ -24,7 +30,7 @@ def eval_odom(pred="test/demo/pred/3d", gt="test/demo/gt", radar=False, aeva=Fal
     T_pred, _, seq_lens_pred = get_sequence_poses(pred, seq)
 
     # For sequences where there are extractor specific parameters in the name
-    # Ex: 'boreas-2021-10-15-12-35_kstrongest_3_0f35.txt' -> 'boreas-2021-10-15-12-35.txt'
+    # Ex: 'canoe-2025-08-21-19-16_test1.txt' -> 'canoe-2025-08-21-19-16.txt'
     seq_gt = []
     for s in seq:
         curr_seq = s.split('_')[0]
@@ -33,7 +39,7 @@ def eval_odom(pred="test/demo/pred/3d", gt="test/demo/gt", radar=False, aeva=Fal
         seq_gt.append(curr_seq)
 
     # get corresponding groundtruth poses
-    T_gt, _, seq_lens_gt, crop = get_sequence_poses_gt(gt, seq_gt, dim, aeva)
+    T_gt, _, seq_lens_gt, crop = get_sequence_poses_gt(gt, seq_gt, dim, sonar)
 
     # compute errors
     t_err, r_err, _ = compute_kitti_metrics(
@@ -46,16 +52,16 @@ def eval_odom(pred="test/demo/pred/3d", gt="test/demo/gt", radar=False, aeva=Fal
 
     return t_err, r_err
 
-def eval_odom_vel(pred="test/demo/pred/3d", gt="test/demo/gt", radar=False, aeva=False):
+def eval_odom_vel(pred="test/demo/pred/3d", gt="test/demo/gt", radar=False, sonar=False):
     # evaluation mode
-    dim = 2 if radar else 3
+    dim = 2 if radar or sonar else 3
 
     # parse sequences
     seq = get_sequences(pred, ".txt")
     vel_pred, times_pred, seq_lens_pred = get_sequence_velocities(pred, seq, dim)
 
     # For sequences where there are extractor specific parameters in the name
-    # Ex: 'boreas-2021-10-15-12-35_kstrongest_3_0f35.txt' -> 'boreas-2021-10-15-12-35.txt'
+    # Ex: 'canoe-2025-08-21-19-16_test1.txt' -> 'canoe-2025-08-21-19-16.txt'
     seq_gt = []
     for s in seq:
         curr_seq = s.split('_')[0]
@@ -64,7 +70,7 @@ def eval_odom_vel(pred="test/demo/pred/3d", gt="test/demo/gt", radar=False, aeva
         seq_gt.append(curr_seq)
     
     # get corresponding groundtruth poses
-    vel_gt, _, seq_lens_gt, crop = get_sequence_velocities_gt(gt, seq_gt, dim, aeva)
+    vel_gt, _, seq_lens_gt, crop = get_sequence_velocities_gt(gt, seq_gt, dim, sonar)
 
     # compute errors
     v_rmse, v_mean = compute_vel_metrics(vel_gt, vel_pred, times_pred, seq_lens_gt, seq_lens_pred, seq, pred, dim, crop)
@@ -93,10 +99,10 @@ if __name__ == "__main__":
         help="evaluate radar odometry in SE(2)",
     )
     parser.add_argument(
-        "--aeva",
-        dest="aeva",
+        "--sonar",
+        dest="sonar",
         action="store_true",
-        help="evaluate aeva odometry in SE(3)",
+        help="evaluate sonar odometry in SE(2)",
     )
 
     parser.add_argument(
@@ -106,6 +112,6 @@ if __name__ == "__main__":
     parser.set_defaults(radar=False)
     args = parser.parse_args()
 
-    eval_odom(args.pred, args.gt, args.radar, args.aeva)
+    eval_odom(args.pred, args.gt, args.radar, args.sonar)
     if args.velocity is not None:
-        eval_odom_vel(args.velocity, args.gt, args.radar, args.aeva)
+        eval_odom_vel(args.velocity, args.gt, args.radar, args.sonar)

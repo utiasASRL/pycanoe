@@ -48,7 +48,7 @@ def get_sequence_poses_gt(path, seq, dim, sonar=False):
             times_np = np.stack(times)
 
             # TO DO: ask Mia about cam eval
-            filepath = osp.join(path, dir, 'applanix/camera_poses.csv')  # read in timestamps of camera groundtruth
+            filepath = osp.join(path, dir, 'novatel/cam_left_poses.csv')  # read in timestamps of camera groundtruth
             _, ctimes = read_traj_file_gt(filepath, np.identity(4), dim)
             if len(ctimes) == 0:
                 # Something went wrong with loading camera timestamps, throw error
@@ -196,7 +196,7 @@ def get_sequence_velocities_gt(path, seq, dim, sonar=False):
             times_np = np.stack(times)
 
             # TO DO: ask Mia about cam eval
-            filepath = osp.join(path, dir, 'applanix/camera_poses.csv')  # read in timestamps of camera groundtruth
+            filepath = osp.join(path, dir, 'novatel/cam_left_poses.csv')  # read in timestamps of camera groundtruth
             _, ctimes = read_vel_file_gt(filepath, np.identity(4), dim)
             if len(ctimes) == 0:
                 # Something went wrong with loading camera timestamps, throw error

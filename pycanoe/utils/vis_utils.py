@@ -16,9 +16,9 @@ def vis_camera(cam, figsize=(20.48, 11.52), dpi=100, show=True, save=None):
     ax.imshow(cam.img)
     ax.set_axis_off()
     if show:
-        plt.show()
+        plt.show(bbox_inches="tight", pad_inches=0)
     if save is not None:
-        plt.savefig(save, bbox_inches="tight")
+        plt.savefig(save, bbox_inches="tight", pad_inches=0)
     return ax
 
 
@@ -34,6 +34,7 @@ def vis_lidar(
     elev=45,
     show=True,
     save=None,
+    dark_mode=False,
 ):
     p = lidar.points
 
@@ -68,6 +69,8 @@ def vis_lidar(
     zs = p[:, 2]
     ax.set_box_aspect((np.ptp(xs), np.ptp(ys), np.ptp(zs)))
     ax.set_axis_off()
+    if dark_mode:
+        ax.set_facecolor("black")
 
     if color_vec is None:
         ax.scatter(
@@ -85,9 +88,9 @@ def vis_lidar(
         ax.scatter(xs=xs, ys=ys, zs=zs, s=0.1, c=c, depthshade=False)
 
     if show:
-        plt.show()
+        plt.show(bbox_inches="tight", pad_inches=0)
     if save is not None:
-        plt.savefig(save, bbox_inches="tight")
+        plt.savefig(save, bbox_inches="tight", pad_inches=0)
 
     return ax
 
@@ -161,9 +164,9 @@ def vis_radar(
     ax.imshow(im, cmap=cmap)
     ax.set_axis_off()
     if show:
-        plt.show()
+        plt.show(bbox_inches="tight", pad_inches=0)
     if save is not None:
-        plt.savefig(save, bbox_inches="tight")
+        plt.savefig(save, bbox_inches="tight", pad_inches=0)
     return ax
 
 
@@ -196,9 +199,9 @@ def vis_sonar(
     ax.imshow(im, cmap=cmap)
     ax.set_axis_off()
     if show:
-        plt.show()
+        plt.show(bbox_inches="tight", pad_inches=0)
     if save is not None:
-        plt.savefig(save, bbox_inches="tight")
+        plt.savefig(save, bbox_inches="tight", pad_inches=0)
     return ax
 
 
@@ -269,7 +272,7 @@ def plot_points_on_img(
             cbar.set_label(color_bar, fontsize=15)
 
     if save is not None:
-        plt.savefig(save, bbox_inches="tight")
+        plt.savefig(save, bbox_inches="tight", pad_inches=0)
     if show:
         plt.show()
     return fig

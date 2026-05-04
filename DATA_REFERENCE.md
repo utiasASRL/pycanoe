@@ -2,31 +2,28 @@
 
 ## Introduction
 
-### Purpose
 This dataset is intended to support autonomous navigation systems for marine robotics.
 It features a unique and rich sensor suite, with 
-radar, lidar, vision, imaging sonar, sidescan sonar, motor, and imu data captured over multiple traversals of a lake and reservoir.
+radar, lidar, vision, sonar, sidescan sonar, motor, and imu data captured over multiple traversals of a lake and reservoir.
 The canoe dataset can be used, for example, to benchmark the odometry and localization capabilities of various sensor types for aquatic navigation.
 In the future, we plan to release benchmarks and leaderboards for these tasks.
 
-<img src="figs/intro.png" width="700">
+<img src="figs/data-collection-apparatus.png" width="500">
 
 ### Sensors
 - Navtech 360 degree radar
 - 128-beam Ouster 3D lidar with integrated IMU
 - Teledyne bumblebee stereo camera
-- Oculus M3000d imaging sonar
-- Starfish 990 sidescan sonar
+- Oculus M3000d sonar
+- Starfish 990 sidescan
 - Motor power inputs
 - Novatel OEM7 GNSS
-
-<img src="figs/data-collection-apparatus.png" width="500">
 
 ### Data Collection
 Data was collected on a lake and reservoir in Ontario, Canada over the course of three days. 
 On the lake, a "short" and "long" route were each traversed twice, with the long route covering the full length of the lake. 
 The reservoir path was repeated three times.
-In total, over 14 hours and 20 km of data were collected.
+In total, over 14 hours and 50 km of data were collected.
 These routes are shown below:
 
 <table>
@@ -36,9 +33,9 @@ These routes are shown below:
     <th>Reservoir</th>
   </tr>
   <tr>
-    <td><img src="figs/sat-map-short.png" width="300"></td>
-    <td><img src="figs/sat-map-long.png" width="300"></td>
-    <td><img src="figs/sat-map-reservoir.png" width="300"></td>
+    <td><img src="figs/map_lake_short.png" width="300"></td>
+    <td><img src="figs/map_lake_long.png" width="300"></td>
+    <td><img src="figs/map_reservoir.png" width="300"></td>
   </tr>
 </table>
 
@@ -63,11 +60,11 @@ each with a resolution of 1152 $\times$ 2048.
 We store rectified images that have been unwarped according to the manufacturer-provided warping tables. 
 Images are extracted and stored at 10Hz to minimize storage requirements.
 
-**Imaging Sonar**: The Oculus M3000d imaging sonar provides a 2D image from 512 beam measurements, covering a 130 degree field of view. 
+**Sonar**: The Oculus M3000d imaging sonar provides a 2D image from 512 beam measurements, covering a 130 degree field of view. 
 It operates at a frequency of 1.2 MHz, with a maximum range of 30m and 378 range bins.
 Sonar images are recorded at a rate of approximately 14Hz. 
 
-**Sidescan Sonar**: Two Starfish 990F sidescan sonars, one on the port side and one on the starboard side, each provide 1D range measurements from a scanning beam with a vertical width of 66.4 degree and a horizontal width of 0.38 degree. The transducers are tilted approximately 30 degrees downward from horizontal. They operate with a 1 MHz CHIRP pulse, with a maximum range of 30m per channel and 2047 range bins. Measurements are recorded at a rate of approximately 21 Hz.
+**Sidescan**: Two Starfish 990F sidescan sonars, one on the port side and one on the starboard side, each provide 1D range measurements from a scanning beam with a vertical width of 66.4 degree and a horizontal width of 0.38 degree. The transducers are tilted approximately 30 degrees downward from horizontal. They operate with a 1 MHz CHIRP pulse, with a maximum range of 30m per channel and 2047 range bins. Measurements are recorded at a rate of approximately 21 Hz.
 
 **IMU**: The inertial measurement unit (IMU) is integrated into the Ouster OS1 lidar. 
 It records angular velocities and linear accelerations in the x, y, and z directions, without biases removed.
@@ -80,13 +77,17 @@ The left (port) and right (starboard) motor power inputs are reported in Watts a
 The NovAtel GNSS system includes dual OEM7 receivers and a dedicated IMU.
 The recorded GNSS data is post-processed using the proprietary Inertial Explorer suite, which retrieves base station data and performs tightly-coupled batch optimization over each sequence. 
 The post-processed position data can be expected to have an RMS error of approximately 2–4 cm. 
-Post-processed positions and velocities are provided, interpolated to 1000 Hz.
+Post-processed positions and velocities are provided and interpolated to 1000 Hz.
 
-**Detailed Data Collection Apparatus** 
-<img src="figs/placeholder.png" width="500">
+**Sensor Examples Per Route**:
+<img src="figs/sensor_dashboard_standalone.png">
+
+**Sensor Placement**:
+
+<img src="figs/detailed-sensor-placement.png" width="500">
 
 ## Data Organization
-Each sequence is stored as a folder under a single Amazon S3 bucket and follows the same naming convention: `s3://canoe-data/data/canoe-YYYY-MM-DD-HH-MM` denoting the time that data collection started. Below is an overview of the structure of each sequence:
+Each sequence is stored as a folder under a single Amazon S3 bucket and follows the same naming convention: `s3://canoe-data/canoe-YYYY-MM-DD-HH-MM` denoting the time that data collection started. Below is an overview of the structure of each sequence:
 
 ```text
 canoe-YYYY-MM-DD-HH-MM/
@@ -110,21 +111,18 @@ canoe-YYYY-MM-DD-HH-MM/
         power.csv
     radar/
         <timestamp>.png
-    sonar/
-        <timestamp>.png
     sidescan/
         sidescan.xtf
-        waterfall.png
+        sidescan.csv
+        waterfall-preview.png
+    sonar/
+        <timestamp>.png
     cam.mp4
     dashboard.mp4
     route_map.html
 ```
 
 Accessing and downloading the dataset is best done using the AWS CLI. 
-The main S3 bucket can also be browsed through using the S3 console in your internet browser at: 
-
-[`https://s3.console.aws.amazon.com/s3/buckets/canoe-data/`](https://s3.console.aws.amazon.com/s3/buckets/canoe-data/)
-
 
 ### Download Instructions
 1. [Create an AWS account (optional)](https://aws.amazon.com/premiumsupport/knowledge-center/create-and-activate-aws-account/)
@@ -134,32 +132,32 @@ The main S3 bucket can also be browsed through using the S3 console in your inte
 
 ```bash
 root=/path/to/data/canoe/
-aws s3 sync s3://canoe-data/data $root
+aws s3 sync s3://canoe-data/ $root
 ```
 
 The following command will list all the top-level prefixes (sequences):
 
 ```bash
 root=/path/to/data/canoe/
-aws s3 ls s3://canoe
+aws s3 ls s3://canoe-data
 ```
-Alternatively, [our website (work-in-progress)](canoe.utias.utoronto.ca/#/download) can be used to browse through sequences as well as pick and choose what data to download. 
+Alternatively, [our website](canoe.cs.toronto.edu/#/download) can be used to browse through sequences as well as pick and choose what data to download. 
 The website will then generate a list of AWS CLI commands that can be run as a bash script. 
 These commands will look something like:
 
 ```bash
 root=/path/to/data/canoe/
 cd $root
-aws s3 sync s3://canoe/canoe-2025-08-21-18-15 ./canoe-2025-08-21-18-15
+aws s3 sync s3://canoe-data/canoe-2025-08-21-19-16 ./canoe-2025-08-21-19-16
 ```
 
 ### Timestamps
 
 Timestamps are given as the number of microseconds since January 1st, 1970, in UTC time.
-For camera, lidar, radar, and imaging sonar files, the name of each file corresponds to its timestamp. 
+For camera, lidar, radar, and sonar files, the name of each file corresponds to its timestamp. 
 For lidar and radar scans, the file timestamp corresponds with the temporal middle of the scan: `floor(M / 2) - 1` where `M` is the total number of azimuths.
 Further, each lidar point and radar azimuth has a timestamp associated with it, expressed in seconds for lidar and microseconds for radar.
-Imu measurements and motor inputs are each recorded in a csv file with the timestamps recorded in the first column.
+IMU measurements and motor inputs are each recorded in a csv file with the timestamps recorded in the first column.
 
 
 ## Conventions
@@ -202,7 +200,7 @@ def load_lidar(path):
             data["y"],
             data["z"],
             data["intensity"].astype(np.float64),
-            np.round(data["timestamp"].astype(np.float64)/1e6,6), #micro to sec
+            np.round(data["timestamp"].astype(np.float64) / 1e6, 6),  # micro to sec
             data["reflectivity"].astype(np.float64),
             data["ambient"].astype(np.float64),
         ),
@@ -221,16 +219,11 @@ The encoder values can be converted into azimuth angles in radians with: `azimut
 The next column is unused to preserve compatibility with Oxford's format. 
 For convenience, we also provide SDK functionality to convert the provided polar format into a cartesian representation.
 
-<table border="1" cellpadding="5">
-  <tr>
-    <td>Polar:</td>
-    <td><img src="figs/rad-polar-ax.png" height="100" style="object-fit: contain;"></td>
-  </tr>
-  <tr>
-    <td>Cartesian:</td>
-    <td><img src="figs/rad-cart-ax.png" height="400" style="object-fit: contain;"></td>
-  </tr>
-</table>
+Note that there is a -0.408 m offset to the range output from the Navtech radar. This value is provided by Navtech. A given bin range can be corrected using range_m = bin_index * resolution + radar_offset.
+In addition, the radar is operated in two modes: long range, with a 1000 m maximum range, and a doppler mode, with a 150 m maximum range, which creates different range resolutions.
+These parameters are noted in `radar_config.yaml` under the `calib/` folder.
+
+<img src="figs/radar-polar-cart-axes.png" >
 
 ### Camera
 Images are stored as `png` files. 
@@ -239,28 +232,27 @@ Left and right images have matching timestamps.
 
 <img src="figs/cam-example.png" width="500">
 
-### Imaging Sonar
+### Sonar
 Similar to the radar sensor, raw sonar scans are 2D polar images: `M` azimuths x `R` range bins. 
 The first two *rows* represent the rotational encoder value as a 16-bit *signed* integer.
 The encoder values can be converted into azimuth angles in radians with: `azimuth = encoder * 0.01 * np.pi/180`. 
 We provide SDK functions to convert the provided polar format into a cartesian representation.
 
-<table border="1" cellpadding="5">
-  <tr>
-    <td>Polar:</td>
-    <td><img src="figs/son-polar-ax.png" height="250" style="object-fit: contain;"></td>
-  </tr>
-  <tr>
-    <td>Cartesian:</td>
-    <td><img src="figs/son-cart-ax.png" height="250" style="object-fit: contain;"></td>
-  </tr>
-</table>
+<img src="figs/sonar-polar-cart-axes.png" width="333">
 
 
-### Sidescan Sonar
-Sidescan sonar pings are aggregated into an eXtended Triton Format (XTF) file `sidescan.xtf`, which includes the ping data from the port and starboard channels and the associated GPS coordinates, as well as sensor specifications. XTF files can be viewed with a sonar viewer such as SonarWiz or Reefmaster. In addition, the raw ping data is aggregated into a waterfall image and stored as `waterfall.png`.
+### Sonar
+Sidescan sonar pings are aggregated into an eXtended Triton Format (XTF) file `sidescan.xtf`, which includes the ping data from the port and starboard channels and the associated GPS coordinates, as well as sensor specifications. XTF files can be viewed with a sonar viewer such as SonarWiz or Reefmaster. 
+For convenience, we have also included `sidescan.csv`, which contains the same data in csv format. 
+In addition, a downsampled version the waterfall image created from raw ping data is stored as `waterfall-preview.png`.
 
-<img src="figs/waterfall-example.png" width="500">
+**Waterfall preview**:
+
+<img src="figs/waterfall-preview.png" width="500">
+
+**Overlay of a satellite image and a mosaic created from the xtf file**:
+
+<img src="figs/sidescan-overlay.png" width="500">
 
 ### IMU
 All IMU measurements for a sequence are recorded in a single csv file, `imu/imu.csv`, with one row per reading. 
@@ -272,15 +264,15 @@ where `time` is the UTC timestamp in microseconds, `(wx, wy, wz)` is the angular
 All motor power inputs for a sequence are recorded in `motor/power.csv`. 
 Each row has four fields: `time,starboard,port,total`, 
 where `time` is the UTC timestamp in microseconds, 
-`starboard` and `port` are the power values (in Watts) to the right and left motors, respectively, 
-and `total` is the total power supplied to the boat in Watts.
+`starboard` and `port` are the power values in Watts to the right and left motors, respectively, 
+and `total` is the total power supplied to the boat.
 
 
 ### Pose Files
 
 Ground truth poses are obtained by post-processing GNSS and IMU measurements along with corrections from base station data using Novatel's Inertial Explorer software suite.
 
-Positions and velocities are given with respect to a fixed East-North-Up frame $ENU_{\text{ref}}$. 
+Positions and velocities are given with respect to a fixed East-North-Up frame $ENU_{\text{ref}}$ that is constant across the whole dataset. 
 The position of the $ENU_{\text{ref}}$ frame is chosen near the start of the first sequence. 
 The orientation of $ENU_{\text{ref}}$ is defined as the ENU (x points East, y points North, z points Up) frame tangential the WGS-84 ellipsoid at that specific position (i.e., latitude, longitude, altitude).
 
@@ -320,11 +312,10 @@ where `t` is the timestamp in microseconds,
 `(ax, ay, az)` is the linear acceleration as defined in the novatel frame.
 **NOTE**: The novatel reference frame defines x facing right, y facing forward, and z facing up.
 
-## Synchronization and Calibration
-### Synchronization
+## Synchronization 
 The data collection setup uses two separate onboard computers: the NVIDIA Jetson Orin AGX and NX. 
 The AGX computer interfaces with the radar, lidar, and camera, 
-while the NX computer communicates with the sonars, motors, and GPS module.
+while the NX computer communicates with the sonar, sidescan, motors, and GPS module.
 
 The GPS module, both onboard computers, radar, and lidar are all synced to UTC time with the Precision Time Protocol (PTP). 
 The timestamps for the radar and lidar (including the integrated IMU) are generated with their respective sensor's onboard clock.
@@ -337,27 +328,15 @@ In our devkit, we provide functionality to "synchronize" the data streams to a r
   <img src="figs/synchronization.png" width="500">
 </div>
 
-### Camera
-The camera warp table, intrinsics (focal length, principal point), and extrinsic transformation (i.e., baseline) between the left and right camera were provided by Teledyne.
-Images in the dataset have already been rectified and as such, the intrinsic parameters can be ignored for most applications. 
-The rectified matrix `P` (from which the intrinsics can be extracted), stored in `P_cam.txt`, can then be used to project points onto the image plane.
+## Calibration
 
-### Lidar-to-Camera Extrinsics
-The extrinsic calibration between the left camera and lidar is obtained using [MATLAB's camera to LIDAR calibrator](https://www.mathworks.com/help/lidar/ug/lidar-and-camera-calibration.html). The results are stored in `T_cam_lidar.txt`.
+**Extrinsic transform tree with calibration method for each link**:
 
-<table border="1" cellpadding="5">
-  <tr>
-    <td><img src="figs/lid-cam-overlay-a.png" height="300" style="object-fit: contain;"></td>
-  </tr>
-  <tr>
-    <td><img src="figs/lid-cam-overlay-b.png" height="300" style="object-fit: contain;"></td>
-  </tr>
-</table>
+<div style="background-color: white; display: inline-block; padding: 10px;">
+  <img src="figs/tf-tree-static-alt-light.png" width="500">
+</div>
 
-### Radar
-A range gain and offset can be used to calculate the most accurate range values from the radar. 
-These values were provided by the radar manufacturer (Navtech).
-The gain, offset, and maximum range mode (from which the range resolution can be calculated) for each sequence is available in `radar_config.yaml`.
+
 
 ### Lidar-to-radar
 The lidar and radar sensors are stacked vertically on the unmanned surface vessel.
@@ -372,6 +351,24 @@ The 6-DOF extrinsic calibration matrix is then assembled from the translational 
 
 <img src="figs/rad-lid-overlay.png" width="500">
 
+### Lidar-to-(Left) Camera Extrinsics
+The extrinsic calibration between the left camera and lidar is obtained using [MATLAB's camera to LIDAR calibrator](https://www.mathworks.com/help/lidar/ug/lidar-and-camera-calibration.html). The results are stored in `T_cam_left_lidar.txt`.
+
+  <img src="figs/lid-cam-overlay-a.png" height="300" style="object-fit: contain;">
+  <img src="figs/lid-cam-overlay-b.png" height="300" style="object-fit: contain;">
+
 ### Other Extrinsic Calibration
-The remaining extrinsic calibration was performed either via the boat CAD model (boat-lidar), measured manually (boat-sonar, boat-sidescan), or provided by the manufacturer (lidar-imu).
+The remaining extrinsic calibration was performed either via the CAD model (boat-lidar, boat-motor), a combination of the CAD model and manual measurements (boat-sonar, boat-sidescan), or provided by the manufacturer (lidar-imu, cam_left-cam_right).
+
+
+## Additional Calibration
+### Camera
+The camera warp table, intrinsics (focal length, principal point), and extrinsic transformation (i.e., baseline) between the left and right camera were provided by Teledyne.
+Images in the dataset have already been rectified.
+The rectified matrix `P`, stored in `P_cam.txt`, can be used to project 3D points onto the image plane.
+
+### Radar
+As mentioned earlier, a range offset can be used to calculate the most accurate range values from the radar. 
+These values were provided by the radar manufacturer (Navtech).
+The offset and maximum range, from which the range resolution can be calculated, for each sequence is available in `radar_config.yaml`.
 

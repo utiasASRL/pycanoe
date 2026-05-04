@@ -215,7 +215,7 @@ Raw radar scans are 2D polar images: `M` azimuths x `R` range bins.
 We follow Oxford's convention and embed timestamp and encoder information into the first 11 columns (bytes) of each polar radar scan. 
 The first 8 columns represent a 64-bit integer, the UTC timestamp of each azimuth. 
 The next 2 columns represent a 16-bit unsigned integer, the rotational encoder value. 
-The encoder values can be converted into azimuth angles in radians with: `azimuth = encoder * np.pi / 2800`. 
+The encoder values can be converted into azimuth angles in radians with: `azimuth = encoder * 2 * np.pi / 2800`. 
 The next column is unused to preserve compatibility with Oxford's format. 
 For convenience, we also provide SDK functionality to convert the provided polar format into a cartesian representation.
 

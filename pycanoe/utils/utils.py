@@ -1,3 +1,7 @@
+# Portions of this module are adapted from the Pyboreas codebase.
+# Original source: https://github.com/utiasASRL/pyboreas
+# Credit to the Pyboreas authors. 
+
 # import os.path as osp
 from pathlib import Path
 import numpy as np

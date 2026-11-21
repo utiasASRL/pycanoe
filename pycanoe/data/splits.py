@@ -39,3 +39,10 @@ loc_test = [
     ["canoe-2025-08-28-14-13"], # reservoir doppler 1
     ["canoe-2025-08-28-16-15"], # reservoir 3
 ]
+# Reference ("map") sequence each loc_test sequence is localized against, matched by route.
+loc_test_reference = {
+    "canoe-2025-08-21-11-31": "canoe-2025-08-20-16-07", # day 2 short -> day 1 short
+    "canoe-2025-08-21-14-08": "canoe-2025-08-20-18-07", # day 2 long -> day 1 long
+    "canoe-2025-08-28-14-13": "canoe-2025-08-28-14-50", # reservoir doppler 1 -> reservoir doppler 2
+    "canoe-2025-08-28-16-15": "canoe-2025-08-28-14-50", # reservoir 3 -> reservoir doppler 2
+}

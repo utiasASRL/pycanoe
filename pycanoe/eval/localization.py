@@ -9,14 +9,11 @@ from pathlib import Path
 
 import numpy as np
 
-from pycanoe.utils.odometry import (
-    read_traj_file_gt2, 
-    get_sequence_velocities_gt
-)
-from pyboreas.data.splits import loc_reference
+from pycanoe.utils.odometry import read_traj_file_gt2
+from pycanoe.data.splits import loc_test, loc_test_reference
 from pyboreas.utils.odometry import (
-    plot_loc_stats, 
-    read_traj_file2, 
+    plot_loc_stats,
+    read_traj_file2,
 )
 from pyboreas.utils.utils import (
     SE3Tose3,
@@ -25,27 +22,37 @@ from pyboreas.utils.utils import (
     rotToRollPitchYaw
 )
 
+LOC_SENSORS = ["lidar", "radar", "camera", "sonar"]
+
+# Sequences whose xy RMSE norm exceeds this are left out of the overall RMSE (counted as failures).
+MAX_XY_RMSE = 5.0
+
 
 def get_Tbs(gtpath, seq, sensor="lidar"):
-    T_boat_lidar = np.loadtxt(
-        osp.join(gtpath, seq, "calib", "T_boat_lidar.txt")
-    )
-    if sensor == "camera": # to do: camleft/camright? maybe need both
-        T_camera_lidar = np.loadtxt(
-            osp.join(gtpath, seq, "calib", "T_camera_lidar.txt")
-        )
-        return np.matmul(T_boat_lidar, get_inverse_tf(T_camera_lidar))
+    """Returns T_boat_sensor from the sequence's calib folder."""
+    if sensor == "sonar":
+        return np.loadtxt(osp.join(gtpath, seq, "calib", "T_boat_sonar.txt"))
+    T_boat_lidar = np.loadtxt(osp.join(gtpath, seq, "calib", "T_boat_lidar.txt"))
+    if sensor == "camera":
+        T_cam_left_lidar = np.loadtxt(osp.join(gtpath, seq, "calib", "T_cam_left_lidar.txt"))
+        return np.matmul(T_boat_lidar, get_inverse_tf(T_cam_left_lidar))
     elif sensor == "radar":
-        T_lidar_radar = np.loadtxt(
-            osp.join(gtpath, seq, "calib", "lidar_radar.txt")
-        )
+        T_lidar_radar = np.loadtxt(osp.join(gtpath, seq, "calib", "T_lidar_radar.txt"))
         return np.matmul(T_boat_lidar, T_lidar_radar)
-    elif sensor == "sonar":
-        T_boat_sonar = np.loadtxt(
-            osp.join(gtpath, seq, "calib", "T_boat_sonar.txt")
-        )
-        return T_boat_sonar
     return T_boat_lidar
+
+
+def poses_file(sensor):
+    """Ground truth poses file for a sensor; camera results are in the left camera frame."""
+    return "cam_left_poses.csv" if sensor == "camera" else sensor + "_poses.csv"
+
+
+def calib_files(sensor):
+    """Calibration files get_Tbs reads for a sensor."""
+    if sensor == "sonar":
+        return ["calib/T_boat_sonar.txt"]
+    extra = {"camera": ["calib/T_cam_left_lidar.txt"], "radar": ["calib/T_lidar_radar.txt"]}
+    return ["calib/T_boat_lidar.txt"] + extra.get(sensor, [])
 
 
 def check_time_match(pred_times, gt_times):
@@ -89,18 +96,37 @@ def root_mean_square(errs):
 def eval_local(
     predpath,
     gtpath,
-    gt_ref_seq,
+    gt_ref_seq=None,
     ref_sensor="lidar",
     test_sensor="lidar",
     dim=3,
     plot_dir=None,
 ):
+    """Evaluates metric localization against a reference (map) sequence.
+
+    Args:
+        predpath: folder with one <sequence>.txt per loc_test sequence
+        gtpath: folder of ground truth sequences (test and reference)
+        gt_ref_seq: reference sequence for every test sequence; by default each test sequence uses
+            its route's reference from pycanoe.data.splits.loc_test_reference
+        ref_sensor, test_sensor: one of LOC_SENSORS
+        dim: 3 for SE(3) or 2 for SE(2)
+        plot_dir: if set, per-sequence plots and localization_results.txt are written here
+
+    Returns:
+        rmse: mean RMSE over successful sequences [x, y, z (m), roll, pitch, yaw (deg)], with the
+            mean consistency appended when every sequence includes covariances
+        seq_rmse: per-sequence RMSE, one row per entry of gt_seqs
+        gt_seqs: evaluated sequences
+        num_removed: sequences left out of rmse because their xy RMSE exceeds MAX_XY_RMSE
+    """
+    if plot_dir is not None:
+        os.makedirs(plot_dir, exist_ok=True)
+    test_seqs = [s[0] for s in loc_test]
     pred_files = sorted(
-        [
-            f
-            for f in os.listdir(predpath)
-            if f.startswith("canoe-20") and f.endswith(".txt") and "err" not in f
-        ]
+        f
+        for f in os.listdir(predpath)
+        if f.endswith(".txt") and "err" not in f and Path(f).stem.split(".")[0] in test_seqs
     )
     gt_seqs = []
     for predfile in pred_files:
@@ -110,15 +136,18 @@ def eval_local(
                 f"prediction file {predfile} doesn't match ground truth sequence list"
             )
         gt_seqs.append(predfile_seq)
+    if not gt_seqs:
+        raise Exception(f"no prediction files for the loc_test sequences found in {predpath}")
 
-    gt_ref_poses, gt_ref_times = read_traj_file_gt2(
-        osp.join(gtpath, gt_ref_seq, "novatel", ref_sensor + "_poses.csv"), dim=dim
-    )
     seq_rmse = []
     seq_consist = []
     seqs_have_cov = True
     for predfile, seq in zip(pred_files, gt_seqs):
-        print("Processing {}...".format(seq))
+        ref_seq = gt_ref_seq or loc_test_reference[seq]
+        print("Processing {} (reference {})...".format(seq, ref_seq))
+        gt_ref_poses, gt_ref_times = read_traj_file_gt2(
+            osp.join(gtpath, ref_seq, "novatel", poses_file(ref_sensor)), dim=dim
+        )
         T_bs = get_Tbs(gtpath, seq, ref_sensor) # T_boat_sensor
         T_sb = get_inverse_tf(T_bs)
         pred_poses, pred_times, ref_times, cov_matrices, has_cov = read_traj_file2(
@@ -126,7 +155,7 @@ def eval_local(
         )
         seqs_have_cov *= has_cov
         gt_poses, gt_times = read_traj_file_gt2(
-            osp.join(gtpath, seq, "novatel", test_sensor + "_poses.csv"), dim=dim
+            osp.join(gtpath, seq, "novatel", poses_file(test_sensor)), dim=dim
         )
         # check that pred_times is a 1-to-1 match with gt_times
         check_time_match(pred_times, gt_times)
@@ -163,50 +192,54 @@ def eval_local(
         Xi = np.array(Xi)
         Cov = np.array(Cov)
         if plot_dir is not None:
-            plot_err_file = osp.join(plot_dir, seq + "-err.txt")
-            print("Saving errs to {}...".format(plot_err_file))
-            np.savetxt(plot_err_file, np.array(errs))
             plot_loc_stats(
                 seq, plot_dir, T_pred_seq, T_gt_seq, errs, consist, Xi, Cov, has_cov
             )
         rmse = root_mean_square(errs)
-        if (rmse[1] > 3 or rmse[0] > 3):
-            print(
-                "WARNING: RMSE is above 3m for sequence {}. Please check the plots and ensure that the "
-                "localization results are reasonable.".format(seq)
-            )
-        else:
-            seq_rmse.append(rmse)
+        seq_rmse.append(rmse)
         print(
-            "RMSE: long.: {} m lat.: {} m vert.: {} m roll: {} deg pitch: {} deg yaw: {} deg".format(
-                rmse[1], rmse[0], rmse[2], rmse[4], rmse[3], rmse[5]
+            "RMSE: x: {} m y: {} m z: {} m roll: {} deg pitch: {} deg yaw: {} deg".format(
+                rmse[0], rmse[1], rmse[2], rmse[3], rmse[4], rmse[5]
             )
         )
         c = -1
         if has_cov:
             c = np.sqrt(max(0, np.mean(consist) / 6.0))
-            # c = np.mean(np.sqrt(np.array(consist) / 6.0))
             print("Consistency: {}".format(c))
         seq_consist.append(c)
         print(" ")
 
     seq_rmse = np.array(seq_rmse)
-    rmse = np.mean(seq_rmse, axis=0).squeeze()
-    print(
-        "Overall RMSE: long.: {} m lat.: {} m vert.: {} m roll: {} deg pitch: {} deg yaw: {} deg".format(
-            rmse[1], rmse[0], rmse[2], rmse[4], rmse[3], rmse[5]
+
+    # Sequences that failed to localize would dominate the mean; count them instead.
+    valid = np.linalg.norm(seq_rmse[:, :2], axis=1) <= MAX_XY_RMSE
+    num_removed = int(np.sum(~valid))
+    if num_removed > 0:
+        print(f"Removed {num_removed} sequences with xy RMSE > {MAX_XY_RMSE} m from the overall RMSE.")
+    if np.any(valid):
+        rmse = np.mean(seq_rmse[valid], axis=0).squeeze()
+        print(
+            "Overall RMSE: x: {} m y: {} m z: {} m roll: {} deg pitch: {} deg yaw: {} deg".format(
+                rmse[0], rmse[1], rmse[2], rmse[3], rmse[4], rmse[5]
+            )
         )
-    )
-    c = -1
+    else:
+        rmse = np.full(6, np.nan)
+        print("No sequence was localized within {} m; overall RMSE is undefined.".format(MAX_XY_RMSE))
     if seqs_have_cov:
         c = np.mean(seq_consist)
         print("Overall Consistency: {}".format(c))
-        con = np.array(seq_consist).reshape(-1, 1)
-        errs = np.concatenate((seq_rmse, con), -1)
-    else:
-        errs = seq_rmse
+        rmse = np.append(rmse, c)
 
-    return errs, gt_seqs
+    if plot_dir is not None:
+        with open(osp.join(plot_dir, "localization_results.txt"), "w") as f:
+            f.write("seq, x_rmse, y_rmse, z_rmse, roll_rmse, pitch_rmse, yaw_rmse")
+            f.write(", consistency\n" if seqs_have_cov else "\n")
+            for seq, row, c in zip(gt_seqs, seq_rmse, seq_consist):
+                line = seq + ", " + ", ".join(f"{x:.4f}" for x in row)
+                f.write(line + (f", {c:.4f}\n" if seqs_have_cov else "\n"))
+
+    return rmse, seq_rmse, gt_seqs, num_removed
 
 
 if __name__ == "__main__":
@@ -215,33 +248,32 @@ if __name__ == "__main__":
     parser.add_argument("--gt", type=str, help="path to groundtruth sequences")
     parser.add_argument(
         "--ref_seq",
-        default=loc_reference[0],
+        default=None,
         type=str,
-        help="Which sequence to use as a reference",
+        help="Reference sequence for every test sequence (default: each route's own reference)",
     )
     parser.add_argument(
         "--ref_sensor",
         default="lidar",
         type=str,
-        help="Which sensor to use as a reference (camera|lidar|radar)",
+        help="Which sensor to use as a reference (camera|lidar|radar|sonar)",
     )
     parser.add_argument(
         "--test_sensor",
         default="lidar",
         type=str,
-        help="Which sensor to use as the test sensor (camera|lidar|radar)",
+        help="Which sensor to use as the test sensor (camera|lidar|radar|sonar)",
     )
     parser.add_argument("--dim", default=3, type=int, help="SE(3) or SE(2)")
     parser.add_argument("--plot", type=str, help="path to save plots")
     args = parser.parse_args()
-    assert args.ref_sensor in ["camera", "lidar", "radar", "sonar"]
-    assert args.test_sensor in ["camera", "lidar", "radar", "sonar"]
+    assert args.ref_sensor in LOC_SENSORS
+    assert args.test_sensor in LOC_SENSORS
     assert args.dim in [2, 3]
     if args.ref_sensor == "radar" or args.test_sensor == "radar":
         assert args.dim == 2
     if args.ref_sensor == "sonar" or args.test_sensor == "sonar":
         assert args.dim == 2
-    os.makedirs(args.plot, exist_ok=True)
     eval_local(
         args.pred,
         args.gt,

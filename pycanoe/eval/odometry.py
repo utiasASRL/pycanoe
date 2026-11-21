@@ -21,7 +21,14 @@ from pyboreas.utils.odometry import (
 )
 
 
+# Like the Boreas benchmark, sequences at or above this translation error (%) count as failures and are
+# left out of the overall error.
+MAX_TRANS_ERR = 3.0
+
+
 def eval_odom(pred="test/demo/pred/3d", gt="test/demo/gt", radar=False, sonar=False):
+    """Returns the mean translation (%) and rotation (deg/m) error over successful sequences, and the
+    number of sequences left out because their translation error is at least MAX_TRANS_ERR."""
     # evaluation mode
     dim = 2 if radar else 3
 
@@ -42,15 +49,23 @@ def eval_odom(pred="test/demo/pred/3d", gt="test/demo/gt", radar=False, sonar=Fa
     T_gt, _, seq_lens_gt, crop = get_sequence_poses_gt(gt, seq_gt, dim, sonar)
 
     # compute errors
-    t_err, r_err, _ = compute_kitti_metrics(
+    _, _, err_list = compute_kitti_metrics(
         T_gt, T_pred, seq_lens_gt, seq_lens_pred, seq, pred, dim, crop
     )
+
+    # average over sequences that didn't fail (per-sequence [t_err, r_err])
+    errors = np.asarray(err_list, dtype=np.float64).reshape(-1, 2)
+    valid = errors[:, 0] < MAX_TRANS_ERR
+    num_removed = int(np.sum(~valid))
+    if num_removed > 0:
+        print(f"Removed {num_removed} sequences with translation error >= {MAX_TRANS_ERR}% from the overall error.")
+    t_err, r_err = np.mean(errors[valid], axis=0) if np.any(valid) else (np.nan, np.nan)
 
     # print out results
     print("Evaluated sequences: ", seq)
     print("Overall error: ", t_err, " %, ", r_err, " deg/m")
 
-    return t_err, r_err
+    return t_err, r_err, num_removed
 
 def eval_odom_vel(pred="test/demo/pred/3d", gt="test/demo/gt", radar=False, sonar=False):
     # evaluation mode

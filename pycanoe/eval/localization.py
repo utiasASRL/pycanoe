@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from pycanoe.utils.odometry import read_traj_file_gt2
-from pycanoe.data.splits import loc_test, loc_test_reference
+from pycanoe.data.splits import loc_test_reference
 from pyboreas.utils.odometry import (
     plot_loc_stats,
     read_traj_file2,
@@ -105,10 +105,11 @@ def eval_local(
     """Evaluates metric localization against a reference (map) sequence.
 
     Args:
-        predpath: folder with one <sequence>.txt per loc_test sequence
+        predpath: folder of <sequence>.txt prediction files
         gtpath: folder of ground truth sequences (test and reference)
-        gt_ref_seq: reference sequence for every test sequence; by default each test sequence uses
-            its route's reference from pycanoe.data.splits.loc_test_reference
+        gt_ref_seq: reference sequence for every prediction file, which may be any CANOE sequence.
+            By default (the benchmark), only loc_test sequences are scored, each against its
+            route's reference from pycanoe.data.splits.loc_test_reference
         ref_sensor, test_sensor: one of LOC_SENSORS
         dim: 3 for SE(3) or 2 for SE(2)
         plot_dir: if set, per-sequence plots and localization_results.txt are written here
@@ -122,11 +123,14 @@ def eval_local(
     """
     if plot_dir is not None:
         os.makedirs(plot_dir, exist_ok=True)
-    test_seqs = [s[0] for s in loc_test]
+    if gt_ref_seq:
+        is_test_seq = lambda seq: seq.startswith("canoe-20")
+    else:
+        is_test_seq = lambda seq: seq in loc_test_reference
     pred_files = sorted(
         f
         for f in os.listdir(predpath)
-        if f.endswith(".txt") and "err" not in f and Path(f).stem.split(".")[0] in test_seqs
+        if f.endswith(".txt") and "err" not in f and is_test_seq(Path(f).stem.split(".")[0])
     )
     gt_seqs = []
     for predfile in pred_files:
@@ -137,7 +141,8 @@ def eval_local(
             )
         gt_seqs.append(predfile_seq)
     if not gt_seqs:
-        raise Exception(f"no prediction files for the loc_test sequences found in {predpath}")
+        expected = "canoe-<date>.txt" if gt_ref_seq else "one per loc_test sequence"
+        raise Exception(f"no prediction files ({expected}) found in {predpath}")
 
     seq_rmse = []
     seq_consist = []

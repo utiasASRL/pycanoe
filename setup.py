@@ -22,7 +22,8 @@ setuptools.setup(
         "opencv-python>=4.5.3.56",
         "matplotlib",
         "PyYAML>=5.4.0",
+        "asrl-pyboreas",
         # "open3d" # not strictly required, make sure matches numpy & matplotlib reqs
-        "scipy>=1.14.0",
+        # "scipy>=1.14.0",
     ],
 )

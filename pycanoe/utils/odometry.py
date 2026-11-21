@@ -37,13 +37,11 @@ def get_sequence_poses_gt(path, seq, dim, sonar=False):
     for filename in seq:
         # determine path to gt file
         dir = filename[:-4]  # assumes last four characters are '.txt'
-        T_novatel_boat = np.loadtxt(osp.join(path, dir, "calib/T_novatel_boat.txt"))
         if dim == 3:
             filepath = osp.join(
                 path, dir, "novatel/lidar_poses.csv"
             )  # use 'lidar_poses.csv' for groundtruth
-            T_boat_lidar = np.loadtxt(osp.join(path, dir, "calib/T_boat_lidar.txt"))
-            T_calib = T_boat_lidar
+            T_calib = np.loadtxt(osp.join(path, dir, "calib/T_boat_lidar.txt"))
             poses, times = read_traj_file_gt(filepath, T_calib, dim)
             times_np = np.stack(times)
 
@@ -70,7 +68,7 @@ def get_sequence_poses_gt(path, seq, dim, sonar=False):
                 filepath = osp.join(
                     path, dir, "novatel/radar_poses.csv"
                 )  # use 'radar_poses.csv' for groundtruth
-                T_calib = np.identity(4) # to do: ask about this? does 2d need to be identity
+                T_calib = np.identity(4)
             poses, times = read_traj_file_gt(filepath, T_calib, dim)
             crop += [(0, len(poses))]
         else:
@@ -295,10 +293,10 @@ def convert_line_to_vel(line, dim=3):
             "Invalid dim value in convert_line_to_vel. Use either 2 or 3."
         )
 
-    vbar = np.array([line[4], line[5], line[6]]).reshape(3, 1)
+    vbar = np.array([line[13], line[14], line[15]]).reshape(3, 1)
     vbar = np.matmul(T[:3, :3].T, vbar).squeeze()
     body_rate = np.array(
-        [vbar[0], vbar[1], vbar[2], line[12], line[11], line[10]]
+        [vbar[0], vbar[1], vbar[2], line[10], line[11], line[12]]
     ).reshape(6, 1)
 
     time = int(line[0])
